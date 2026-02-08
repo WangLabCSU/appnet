@@ -71,10 +71,10 @@ apps:
         type: full
         strip_prefix: true
 
-  # UCSC Xena Shiny - 跳转到外部地址
+  # Shiny Server - 跳转到外部地址
   - name: shiny
     type: redirect
-    description: "UCSC Xena Shiny Server (External)"
+    description: "Shiny Server"
     routes:
       - path: /shiny
         target: http://biotree.top:38124/

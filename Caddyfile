@@ -18,12 +18,6 @@
     }
     redir /demo1 /demo1/ 308
 
-    handle /demo2/* {
-        uri strip_prefix /demo2
-        reverse_proxy localhost:28882
-    }
-    redir /demo2 /demo2/ 308
-
     redir /shiny http://biotree.top:38124/
     redir /shiny/* http://biotree.top:38124/
 

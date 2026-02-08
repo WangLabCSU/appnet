@@ -46,22 +46,28 @@ apps = config.get('apps', [])
 for app in apps:
     name = app.get('name')
     app_type = app.get('type')
+    enabled = app.get('enabled', True)  # 默认启用
     
-    if app_type == 'proxy':
-        print(f"Skipping proxy app: {name}")
+    # 跳过禁用的应用
+    if enabled is False:
+        print(f"⏸️  Skipping disabled app: {name}")
+        continue
+    
+    if app_type == 'proxy' or app_type == 'redirect':
+        print(f"⏭️  Skipping proxy/redirect app: {name}")
         continue
     
     app_dir = os.path.join(base_dir, 'apps', name)
     
     if not os.path.exists(app_dir):
-        print(f"Warning: App directory not found: {app_dir}")
+        print(f"⚠️  Warning: App directory not found: {app_dir}")
         continue
     
     if app_type == 'fullstack':
         # 启动后端
         backend_dir = os.path.join(app_dir, 'backend')
         if os.path.exists(os.path.join(backend_dir, 'package.json')):
-            print(f"Starting {name}-backend...")
+            print(f"🚀 Starting {name}-backend...")
             os.chdir(backend_dir)
             if not os.path.exists('node_modules'):
                 subprocess.run(['npm', 'install'], capture_output=True)
@@ -76,13 +82,13 @@ for app in apps:
                                        start_new_session=True)
                 with open(pid_file, 'w') as pf:
                     pf.write(str(proc.pid))
-                print(f"  Started with PID {proc.pid}")
+                print(f"   Started with PID {proc.pid}")
             os.chdir(base_dir)
         
         # 启动前端
         frontend_dir = os.path.join(app_dir, 'frontend')
         if os.path.exists(os.path.join(frontend_dir, 'package.json')):
-            print(f"Starting {name}-frontend...")
+            print(f"🚀 Starting {name}-frontend...")
             os.chdir(frontend_dir)
             if not os.path.exists('node_modules'):
                 subprocess.run(['npm', 'install'], capture_output=True)
@@ -97,12 +103,12 @@ for app in apps:
                                        start_new_session=True)
                 with open(pid_file, 'w') as pf:
                     pf.write(str(proc.pid))
-                print(f"  Started with PID {proc.pid}")
+                print(f"   Started with PID {proc.pid}")
             os.chdir(base_dir)
     
     elif app_type == 'monolith':
         if os.path.exists(os.path.join(app_dir, 'package.json')):
-            print(f"Starting {name}...")
+            print(f"🚀 Starting {name}...")
             os.chdir(app_dir)
             if not os.path.exists('node_modules'):
                 subprocess.run(['npm', 'install'], capture_output=True)
@@ -117,10 +123,10 @@ for app in apps:
                                        start_new_session=True)
                 with open(pid_file, 'w') as pf:
                     pf.write(str(proc.pid))
-                print(f"  Started with PID {proc.pid}")
+                print(f"   Started with PID {proc.pid}")
             os.chdir(base_dir)
 
-print("\nAll applications started!")
+print("\n✅ All enabled applications started!")
 PYTHON_SCRIPT
 }
 
@@ -133,7 +139,7 @@ start_caddy() {
     "$SCRIPT_DIR/generate-caddyfile.sh" > /dev/null 2>&1
     
     if pgrep -x "caddy" > /dev/null; then
-        echo "Caddy is already running, reloading..."
+        echo "🔄 Caddy is already running, reloading..."
         caddy reload --config "$BASE_DIR/Caddyfile"
     else
         caddy start --config "$BASE_DIR/Caddyfile"
@@ -162,6 +168,10 @@ print("")
 
 for app in config.get('apps', []):
     name = app.get('name')
+    enabled = app.get('enabled', True)
+    if enabled is False:
+        print(f"⏸️  {name}: DISABLED")
+        continue
     for route in app.get('routes', []):
         path = route.get('path', '')
         print(f"📦 {name}: http://localhost:{http_port}{path}")

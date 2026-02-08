@@ -268,19 +268,21 @@ apps = config.get('apps', [])
 if not apps:
     print("No applications configured")
 else:
-    print(f"{'Name':<15} {'Type':<12} {'Description':<30}")
-    print("-" * 60)
+    print(f"{'Status':<8} {'Name':<15} {'Type':<12} {'Description':<30}")
+    print("-" * 70)
     for app in apps:
         name = app.get('name', 'N/A')
         app_type = app.get('type', 'N/A')
         desc = app.get('description', 'N/A')[:28]
-        print(f"{name:<15} {app_type:<12} {desc:<30}")
+        enabled = app.get('enabled', True)
+        status = "✅" if enabled is not False else "⏸️"
+        print(f"{status:<8} {name:<15} {app_type:<12} {desc:<30}")
         
         routes = app.get('routes', [])
         for route in routes:
             path = route.get('path', '')
             target = route.get('target', '')
-            print(f"  → {path:<20} → {target}")
+            print(f"         → {path:<20} → {target}")
         print()
 PYTHON_SCRIPT
 }

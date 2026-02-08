@@ -43,16 +43,27 @@ print("")
 for app in config.get('apps', []):
     name = app.get('name')
     app_type = app.get('type')
+    enabled = app.get('enabled', True)
     
-    if app_type == 'proxy':
-        print(f"  {name} (proxy)")
+    # 显示禁用状态
+    status_icon = "⏸️" if enabled is False else "📦"
+    
+    if app_type == 'proxy' or app_type == 'redirect':
+        print(f"  {status_icon} {name} ({app_type})")
+        if enabled is False:
+            print(f"      Status: DISABLED")
         for route in app.get('routes', []):
             target = route.get('target', '')
-            print(f"    → Proxy to {target}")
+            print(f"      → {target}")
         print("")
         continue
     
-    print(f"  {name} ({app_type}):")
+    print(f"  {status_icon} {name} ({app_type}):")
+    
+    if enabled is False:
+        print(f"      Status: DISABLED (not started)")
+        print("")
+        continue
     
     if app_type == 'fullstack':
         services = [
@@ -93,9 +104,12 @@ http_port = config.get('caddy', {}).get('http_port', 8880)
 print(f"  Caddy:     {http_port}")
 
 for app in config.get('apps', []):
+    enabled = app.get('enabled', True)
+    if enabled is False:
+        continue
     for route in app.get('routes', []):
         target = route.get('target', '')
-        if ':' in target:
+        if ':' in target and 'localhost' in target:
             port = target.split(':')[-1]
             name = app.get('name')
             # 检查端口是否被监听
