@@ -1,0 +1,34 @@
+{
+    http_port 8880
+    auto_https off
+}
+
+:8880 {
+    @default path /
+    redir @default https://oncoharmony-network.github.io/
+
+    handle /demo1/api/* {
+        uri strip_prefix /demo1/api
+        reverse_proxy localhost:28881
+    }
+
+    handle /demo1/* {
+        uri strip_prefix /demo1
+        reverse_proxy localhost:28883
+    }
+
+    handle /demo2/* {
+        uri strip_prefix /demo2
+        reverse_proxy localhost:28882
+    }
+
+    handle /shiny/* {
+        uri strip_prefix /shiny
+        reverse_proxy localhost:3838
+    }
+
+    log {
+        output file logs/access.log
+        format json
+    }
+}

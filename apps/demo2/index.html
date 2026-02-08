@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo 2 - Survival Analysis</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #11998e;
+            border-bottom: 3px solid #11998e;
+            padding-bottom: 10px;
+        }
+        .card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            border-left: 4px solid #11998e;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #11998e;
+            color: white;
+        }
+        tr:hover {
+            background: #f0f0f0;
+        }
+        .status-alive {
+            color: #11998e;
+            font-weight: bold;
+        }
+        .status-deceased {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        button {
+            background: #11998e;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #0d8a7a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Demo 2 - Survival Analysis</h1>
+        <p>欢迎来到生存分析演示应用</p>
+        
+        <div class="card">
+            <h2>患者生存数据</h2>
+            <p>点击按钮加载示例数据</p>
+            <button onclick="loadResults()">加载数据</button>
+            <div id="resultsContainer"></div>
+        </div>
+
+        <div class="card">
+            <h2>应用信息</h2>
+            <p><strong>端口:</strong> 8882</p>
+            <p><strong>访问路径:</strong> /demo2</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadResults() {
+            try {
+                const response = await fetch('/api/results');
+                const data = await response.json();
+                
+                let html = `
+                    <table>
+                        <tr>
+                            <th>患者ID</th>
+                            <th>生存天数</th>
+                            <th>状态</th>
+                            <th>治疗方案</th>
+                        </tr>
+                `;
+                
+                data.results.forEach(item => {
+                    const statusClass = item.status === 'Alive' ? 'status-alive' : 'status-deceased';
+                    html += `
+                        <tr>
+                            <td>${item.patient}</td>
+                            <td>${item.survival}</td>
+                            <td class="${statusClass}">${item.status}</td>
+                            <td>${item.treatment}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += '</table>';
+                document.getElementById('resultsContainer').innerHTML = html;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

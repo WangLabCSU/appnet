@@ -1,0 +1,12 @@
+{
+  "name": "demo2-survival-analysis",
+  "version": "1.0.0",
+  "description": "Demo 2 - Survival Analysis",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

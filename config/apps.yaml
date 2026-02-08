@@ -1,0 +1,47 @@
+# AppNet 应用配置文件
+# 用于定义所有反向代理的应用
+
+# Caddy 全局配置
+caddy:
+  http_port: 8880
+  admin_port: 2019
+  auto_https: false
+
+# 默认跳转
+default_redirect: https://oncoharmony-network.github.io/
+
+# 应用列表
+apps:
+  # Demo1 - 前后端分离示例
+  - name: demo1
+    type: fullstack
+    description: "Gene Expression Analysis - Full Stack Demo"
+    routes:
+      - path: /demo1/api
+        target: localhost:28881
+        type: api
+        strip_prefix: true
+      - path: /demo1
+        target: localhost:28883
+        type: frontend
+        strip_prefix: true
+
+  # Demo2 - 单体应用示例
+  - name: demo2
+    type: monolith
+    description: "Survival Analysis - Monolithic Demo"
+    routes:
+      - path: /demo2
+        target: localhost:28882
+        type: full
+        strip_prefix: true
+
+  # Shiny - 外部应用代理
+  - name: shiny
+    type: proxy
+    description: "R Shiny Server"
+    routes:
+      - path: /shiny
+        target: localhost:3838
+        type: full
+        strip_prefix: true

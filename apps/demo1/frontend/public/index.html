@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo 1 - Gene Expression Analysis (Full Stack)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+        .status.healthy {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+        button:hover {
+            background: #5a6fd6;
+            transform: translateY(-2px);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .gene-detail {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 15px;
+            border-left: 4px solid #667eea;
+        }
+        .gene-detail h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .gene-detail p {
+            margin: 5px 0;
+            color: #555;
+        }
+        .info-box {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #2196f3;
+        }
+        .info-box h4 {
+            color: #1976d2;
+            margin-bottom: 8px;
+        }
+        .info-box code {
+            background: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧬 Demo 1 - Gene Expression Analysis</h1>
+            <p>完整的前后端分离应用 - 通过Caddy统一代理解决跨域问题</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>🔌 Backend API Status</h2>
+                <div id="apiStatus" class="status error">Checking...</div>
+                <button onclick="checkHealth()">检查API健康状态</button>
+                
+                <div class="info-box">
+                    <h4>📡 跨域解决方案</h4>
+                    <p>通过Caddy统一代理，前端和后端都通过 <code>/demo1/</code> 访问，避免了跨域问题。</p>
+                    <p><strong>前端端口:</strong> 18883 (通过 /demo1/ 访问)</p>
+                    <p><strong>后端端口:</strong> 18881 (通过 /demo1/api/ 访问)</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 Gene List</h2>
+                <button onclick="loadGenes()">加载基因数据</button>
+                <div id="geneList"></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2>🔍 Gene Detail</h2>
+            <p style="margin-bottom: 10px;">点击表格中的基因ID查看详情</p>
+            <div id="geneDetail"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/demo1/api';
+
+        async function checkHealth() {
+            const statusEl = document.getElementById('apiStatus');
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                statusEl.textContent = `✓ Healthy - ${data.service}`;
+                statusEl.className = 'status healthy';
+            } catch (error) {
+                statusEl.textContent = '✗ Error';
+                statusEl.className = 'status error';
+                console.error('Health check failed:', error);
+            }
+        }
+
+        async function loadGenes() {
+            const container = document.getElementById('geneList');
+            container.innerHTML = '<p style="color: #666;">Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/genes`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    let html = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Gene</th>
+                                    <th>Expression</th>
+                                    <th>Chromosome</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    result.data.forEach(gene => {
+                        html += `
+                            <tr onclick="loadGeneDetail(${gene.id})" style="cursor: pointer;">
+                                <td><strong>${gene.id}</strong></td>
+                                <td>${gene.gene}</td>
+                                <td>${gene.expression}</td>
+                                <td>${gene.chromosome}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                }
+            } catch (error) {
+                container.innerHTML = '<p style="color: #e74c3c;">Error loading data</p>';
+                console.error('Error:', error);
+            }
+        }
+
+        async function loadGeneDetail(id) {
+            const container = document.getElementById('geneDetail');
+            container.innerHTML = '<p style="color: #666;">Loading...</p>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/genes/${id}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const gene = result.data;
+                    container.innerHTML = `
+                        <div class="gene-detail">
+                            <h3>${gene.gene}</h3>
+                            <p><strong>ID:</strong> ${gene.id}</p>
+                            <p><strong>Expression:</strong> ${gene.expression}</p>
+                            <p><strong>Sample:</strong> ${gene.sample}</p>
+                            <p><strong>Chromosome:</strong> ${gene.chromosome}</p>
+                            <p><strong>Function:</strong> ${gene.function}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                container.innerHTML = '<p style="color: #e74c3c;">Error loading gene detail</p>';
+                console.error('Error:', error);
+            }
+        }
+
+        window.onload = () => {
+            checkHealth();
+        };
+    </script>
+</body>
+</html>
