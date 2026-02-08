@@ -69,31 +69,65 @@
         button:hover {
             background: #0d8a7a;
         }
+        .error {
+            color: #e74c3c;
+            padding: 10px;
+            background: #fee;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .success {
+            color: #11998e;
+            padding: 10px;
+            background: #efe;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📊 Demo 2 - Survival Analysis</h1>
-        <p>欢迎来到生存分析演示应用</p>
+        <p>单体应用示例 - 所有功能在一个服务中</p>
         
         <div class="card">
             <h2>患者生存数据</h2>
-            <p>点击按钮加载示例数据</p>
+            <p>点击按钮从后端API加载示例数据</p>
             <button onclick="loadResults()">加载数据</button>
             <div id="resultsContainer"></div>
+            <div id="messageContainer"></div>
         </div>
 
         <div class="card">
             <h2>应用信息</h2>
-            <p><strong>端口:</strong> 8882</p>
+            <p><strong>类型:</strong> 单体应用 (Monolith)</p>
+            <p><strong>后端端口:</strong> 28882</p>
             <p><strong>访问路径:</strong> /demo2</p>
+            <p><strong>API端点:</strong> /demo2/api/results</p>
         </div>
     </div>
 
     <script>
+        // 自动加载数据
+        window.onload = function() {
+            loadResults();
+        };
+
         async function loadResults() {
+            const container = document.getElementById('resultsContainer');
+            const messageContainer = document.getElementById('messageContainer');
+            
+            container.innerHTML = '<p>加载中...</p>';
+            messageContainer.innerHTML = '';
+            
             try {
-                const response = await fetch('/api/results');
+                // 使用相对路径，Caddy会正确代理
+                const response = await fetch('api/results');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const data = await response.json();
                 
                 let html = `
@@ -119,9 +153,13 @@
                 });
                 
                 html += '</table>';
-                document.getElementById('resultsContainer').innerHTML = html;
+                container.innerHTML = html;
+                messageContainer.innerHTML = `<div class="success">✅ 成功加载 ${data.results.length} 条记录</div>`;
+                
             } catch (error) {
                 console.error('Error:', error);
+                container.innerHTML = '';
+                messageContainer.innerHTML = `<div class="error">❌ 加载失败: ${error.message}</div>`;
             }
         }
     </script>

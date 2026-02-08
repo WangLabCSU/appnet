@@ -1,6 +1,41 @@
 # AppNet 应用配置文件
 # 用于定义所有反向代理的应用
 
+# ============================================
+# 配置参数说明
+# ============================================
+#
+# caddy: Caddy服务器全局配置
+#   http_port: Caddy监听端口（默认8880）
+#   admin_port: Caddy管理API端口（默认2019，仅本机访问）
+#   auto_https: 是否自动启用HTTPS（true/false）
+#
+# default_redirect: 根路径默认跳转地址
+#
+# apps: 应用列表
+#   - name: 应用名称（唯一标识）
+#     type: 应用类型
+#       - fullstack: 前后端分离（自动创建backend/frontend）
+#       - monolith: 单体应用
+#       - proxy: 代理外部服务
+#       - redirect: 跳转到外部URL
+#     enabled: 是否启用（true/false，可选，默认true）
+#     description: 应用描述
+#     routes: 路由配置列表
+#       - path: URL路径
+#         target: 目标地址（localhost:端口 或 外部URL）
+#         type: 路由类型
+#           - api: API接口（路径会被精确匹配）
+#           - frontend: 前端应用
+#           - full: 完整应用
+#         strip_prefix: 是否剥离路径前缀（true/false）
+#
+# 端口分配建议：
+#   - 后端服务：使用 28xxx 端口
+#   - 前端服务：使用 28xxx+2 端口（前后端分离时）
+#   - 单体应用：使用 28xxx 端口
+# ============================================
+
 # Caddy 全局配置
 caddy:
   http_port: 8880
@@ -12,7 +47,7 @@ default_redirect: https://oncoharmony-network.github.io/
 
 # 应用列表
 apps:
-  # Demo1 - 前后端分离示例
+  # Demo1 - 前后端分离示例（基因表达分析）
   - name: demo1
     type: fullstack
     description: "Gene Expression Analysis - Full Stack Demo"
@@ -26,7 +61,7 @@ apps:
         type: frontend
         strip_prefix: true
 
-  # Demo2 - 单体应用示例
+  # Demo2 - 单体应用示例（生存分析）
   - name: demo2
     type: monolith
     description: "Survival Analysis - Monolithic Demo"
@@ -36,12 +71,21 @@ apps:
         type: full
         strip_prefix: true
 
-  # Shiny - 外部应用代理
+  # UCSC Xena Shiny - 跳转到外部地址
   - name: shiny
-    type: proxy
-    description: "R Shiny Server"
+    type: redirect
+    description: "UCSC Xena Shiny Server (External)"
     routes:
       - path: /shiny
-        target: localhost:3838
-        type: full
-        strip_prefix: true
+        target: http://biotree.top:38124/
+        type: redirect
+
+  # 示例：如何禁用应用（保留配置但暂时不用）
+  # - name: oldapp
+  #   type: monolith
+  #   enabled: false
+  #   description: "Disabled application example"
+  #   routes:
+  #     - path: /oldapp
+  #       target: localhost:28000
+  #       type: full

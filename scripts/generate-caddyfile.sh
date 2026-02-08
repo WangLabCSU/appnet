@@ -47,7 +47,22 @@ lines.append("")
 apps = config.get('apps', [])
 for app in apps:
     app_name = app.get('name', 'unknown')
+    app_type = app.get('type', 'proxy')
     routes = app.get('routes', [])
+    
+    # 处理跳转类型的应用
+    if app_type == 'redirect':
+        for route in routes:
+            path = route.get('path', '')
+            target = route.get('target', '')
+            lines.append(f"    redir /{app_name} {target}")
+            lines.append(f"    redir /{app_name}/* {target}")
+        lines.append("")
+        continue
+    
+    # 跳过被注释的应用（enabled: false）
+    if app.get('enabled') is False:
+        continue
     
     # 按路径长度降序排序，确保更具体的路径先匹配
     routes_sorted = sorted(routes, key=lambda r: len(r.get('path', '')), reverse=True)
@@ -70,6 +85,8 @@ for app in apps:
             lines.append(f"        uri strip_prefix /{app_name}")
             lines.append(f"        reverse_proxy {target}")
             lines.append(f"    }}")
+            # 添加不带斜杠的重定向
+            lines.append(f"    redir /{app_name} /{app_name}/ 308")
         lines.append("")
 
 lines.append("    log {")

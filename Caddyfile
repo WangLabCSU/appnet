@@ -16,16 +16,16 @@
         uri strip_prefix /demo1
         reverse_proxy localhost:28883
     }
+    redir /demo1 /demo1/ 308
 
     handle /demo2/* {
         uri strip_prefix /demo2
         reverse_proxy localhost:28882
     }
+    redir /demo2 /demo2/ 308
 
-    handle /shiny/* {
-        uri strip_prefix /shiny
-        reverse_proxy localhost:3838
-    }
+    redir /shiny http://biotree.top:38124/
+    redir /shiny/* http://biotree.top:38124/
 
     log {
         output file logs/access.log
