@@ -125,6 +125,36 @@ for app in apps:
                     pf.write(str(proc.pid))
                 print(f"   Started with PID {proc.pid}")
             os.chdir(base_dir)
+    
+    elif app_type == 'custom':
+        # 自定义启动脚本
+        start_script = app.get('start_script')
+        if start_script:
+            script_path = os.path.join(app_dir, start_script)
+            if os.path.exists(script_path):
+                print(f"🚀 Starting {name} (custom script)...")
+                os.chdir(app_dir)
+                
+                # 准备环境变量
+                env = os.environ.copy()
+                app_env = app.get('env', {})
+                env.update(app_env)
+                
+                log_file = os.path.join(base_dir, 'logs', f'{name}.log')
+                pid_file = os.path.join(base_dir, 'logs', f'{name}.pid')
+                
+                with open(log_file, 'w') as log:
+                    proc = subprocess.Popen(['bash', script_path], 
+                                           stdout=log, 
+                                           stderr=subprocess.STDOUT,
+                                           start_new_session=True,
+                                           env=env)
+                    with open(pid_file, 'w') as pf:
+                        pf.write(str(proc.pid))
+                    print(f"   Started with PID {proc.pid}")
+                os.chdir(base_dir)
+            else:
+                print(f"⚠️  Start script not found: {script_path}")
 
 print("\n✅ All enabled applications started!")
 PYTHON_SCRIPT

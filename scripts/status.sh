@@ -65,11 +65,14 @@ for app in config.get('apps', []):
         print("")
         continue
     
+    # 确定服务名称
     if app_type == 'fullstack':
         services = [
             (f"{name}-backend", f"{name}-backend"),
             (f"{name}-frontend", f"{name}-frontend")
         ]
+    elif app_type == 'custom':
+        services = [(name, name)]
     else:
         services = [(name, name)]
     

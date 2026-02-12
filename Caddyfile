@@ -24,6 +24,12 @@
     }
     redir /demo2 /demo2/ 308
 
+    handle /otk/* {
+        uri strip_prefix /otk
+        reverse_proxy localhost:28884
+    }
+    redir /otk /otk/ 308
+
     redir /shiny http://biotree.top:38124/
     redir /shiny/* http://biotree.top:38124/
 

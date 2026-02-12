@@ -16,11 +16,15 @@
 #   - name: 应用名称（唯一标识）
 #     type: 应用类型
 #       - fullstack: 前后端分离（自动创建backend/frontend）
-#       - monolith: 单体应用
+#       - monolith: 单体应用（Node.js/npm）
+#       - custom: 自定义启动脚本
 #       - proxy: 代理外部服务
 #       - redirect: 跳转到外部URL
 #     enabled: 是否启用（true/false，可选，默认true）
 #     description: 应用描述
+#     start_script: 自定义启动脚本路径（仅custom类型需要）
+#     env: 环境变量（可选）
+#       VAR_NAME: value
 #     routes: 路由配置列表
 #       - path: URL路径
 #         target: 目标地址（localhost:端口 或 外部URL）
@@ -68,6 +72,19 @@ apps:
     routes:
       - path: /demo2
         target: localhost:28882
+        type: full
+        strip_prefix: true
+
+  # OTK API - 自定义启动脚本的Python应用
+  - name: otk
+    type: custom
+    description: "OTK Prediction API (Python/FastAPI)"
+    start_script: otk_api/start_api.sh
+    env:
+      API_PORT: 28884
+    routes:
+      - path: /otk
+        target: localhost:28884
         type: full
         strip_prefix: true
 
