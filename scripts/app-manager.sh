@@ -30,18 +30,23 @@ AppNet 应用管理工具
     list                        列出所有应用
     update                      更新配置并重启Caddy
     ports                       显示端口使用情况
-    start <name>                启动单个应用
-    stop <name>                 停止单个应用
+    start [<name>]              启动应用（不指定名称则启动所有）
+    stop [<name>]               停止应用（不指定名称则停止所有）
     restart <name>              重启单个应用
+    status                      查看服务状态
+    reload                      重载Caddy配置
     
 示例:
     $0 add myapp monolith 3000
     $0 remove myapp
     $0 list
     $0 update
-    $0 start otk
-    $0 stop otk
+    $0 start            # 启动所有应用和Caddy
+    $0 start otk        # 只启动otk
+    $0 stop             # 停止所有服务和Caddy
+    $0 stop otk         # 只停止otk
     $0 restart otk
+    $0 status
 
 EOF
 }
@@ -578,6 +583,258 @@ restart_app() {
     start_app "$name"
 }
 
+# 启动所有应用和Caddy
+start_all() {
+    echo -e "${BLUE}=== Starting AppNet Services ===${NC}"
+    echo ""
+    
+    # 启动所有应用
+    python3 << PYTHON_SCRIPT
+import yaml
+import os
+import subprocess
+import sys
+
+config_file = "$CONFIG_FILE"
+base_dir = "$BASE_DIR"
+
+with open(config_file, 'r') as f:
+    config = yaml.safe_load(f)
+
+apps = config.get('apps', [])
+os.makedirs(os.path.join(base_dir, 'logs'), exist_ok=True)
+
+for app in apps:
+    name = app.get('name')
+    app_type = app.get('type')
+    enabled = app.get('enabled', True)
+    
+    if enabled is False:
+        print(f"⏸️  Skipping disabled app: {name}")
+        continue
+    
+    if app_type in ['proxy', 'redirect']:
+        continue
+    
+    app_dir = os.path.join(base_dir, 'apps', name)
+    
+    if not os.path.exists(app_dir):
+        print(f"⚠️  App directory not found: {app_dir}")
+        continue
+    
+    if app_type == 'custom':
+        start_script = app.get('start_script')
+        if start_script:
+            script_path = os.path.join(app_dir, start_script)
+            if os.path.exists(script_path):
+                os.chdir(app_dir)
+                
+                env = os.environ.copy()
+                app_env = app.get('env', {})
+                for key, value in app_env.items():
+                    env[key] = str(value)
+                
+                log_file = os.path.join(base_dir, 'logs', f'{name}.log')
+                pid_file = os.path.join(base_dir, 'logs', f'{name}.pid')
+                
+                with open(log_file, 'w') as log:
+                    proc = subprocess.Popen(['bash', script_path], 
+                                           stdout=log, 
+                                           stderr=subprocess.STDOUT,
+                                           start_new_session=True,
+                                           env=env)
+                    with open(pid_file, 'w') as pf:
+                        pf.write(str(proc.pid))
+                    print(f"🚀 Started {name} with PID {proc.pid}")
+                os.chdir(base_dir)
+
+print("\n✅ All enabled applications started!")
+PYTHON_SCRIPT
+
+    # 生成并启动Caddy
+    echo ""
+    echo -e "${BLUE}=== Starting Caddy ===${NC}"
+    "$SCRIPT_DIR/generate-caddyfile.sh" > /dev/null 2>&1
+    
+    if pgrep -x "caddy" > /dev/null; then
+        echo "🔄 Caddy is already running, reloading..."
+        caddy reload --config "$BASE_DIR/Caddyfile"
+    else
+        caddy start --config "$BASE_DIR/Caddyfile"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}=== AppNet Services Started ===${NC}"
+}
+
+# 停止所有服务和Caddy
+stop_all() {
+    echo -e "${YELLOW}=== Stopping AppNet Services ===${NC}"
+    echo ""
+    
+    # 停止Caddy
+    echo "Stopping Caddy..."
+    if pgrep -x "caddy" > /dev/null; then
+        caddy stop 2>/dev/null || true
+        echo "  ✅ Caddy stopped"
+    else
+        echo "  ⚠️  Caddy was not running"
+    fi
+    
+    # 停止所有应用
+    echo ""
+    echo "Stopping Applications..."
+    
+    for pid_file in "$BASE_DIR"/logs/*.pid; do
+        if [ -f "$pid_file" ]; then
+            service_name=$(basename "$pid_file" .pid)
+            pid=$(cat "$pid_file" 2>/dev/null)
+            
+            if [ -n "$pid" ]; then
+                if kill -0 "$pid" 2>/dev/null; then
+                    kill "$pid" 2>/dev/null
+                    for i in {1..5}; do
+                        if ! kill -0 "$pid" 2>/dev/null; then
+                            break
+                        fi
+                        sleep 1
+                    done
+                    if kill -0 "$pid" 2>/dev/null; then
+                        kill -9 "$pid" 2>/dev/null || true
+                    fi
+                    echo "  ✅ $service_name stopped (PID: $pid)"
+                else
+                    echo "  ⚠️  $service_name was not running"
+                fi
+            fi
+            rm -f "$pid_file"
+        fi
+    done
+    
+    echo ""
+    echo -e "${GREEN}=== All Services Stopped ===${NC}"
+}
+
+# 显示服务状态
+show_status() {
+    echo -e "${BLUE}=== AppNet Service Status ===${NC}"
+    echo ""
+    
+    # 检查 Caddy
+    echo "🌐 Caddy Proxy:"
+    if pgrep -x "caddy" > /dev/null; then
+        pid=$(pgrep -x "caddy")
+        echo "  ✅ Running (PID: $pid)"
+    else
+        echo "  ❌ Not running"
+    fi
+    
+    echo ""
+    
+    # 检查应用
+    python3 << PYTHON_SCRIPT
+import yaml
+import os
+import subprocess
+
+config_file = "$CONFIG_FILE"
+base_dir = "$BASE_DIR"
+
+try:
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
+except:
+    print("Error: Could not read config file")
+    exit(1)
+
+print("📦 Applications:")
+print("")
+
+for app in config.get('apps', []):
+    name = app.get('name')
+    app_type = app.get('type')
+    enabled = app.get('enabled', True)
+    
+    status_icon = "⏸️" if enabled is False else "📦"
+    
+    if app_type in ['proxy', 'redirect']:
+        print(f"  {status_icon} {name} ({app_type})")
+        if enabled is False:
+            print(f"      Status: DISABLED")
+        for route in app.get('routes', []):
+            target = route.get('target', '')
+            print(f"      → {target}")
+        print("")
+        continue
+    
+    print(f"  {status_icon} {name} ({app_type}):")
+    
+    if enabled is False:
+        print(f"      Status: DISABLED (not started)")
+        print("")
+        continue
+    
+    if app_type == 'fullstack':
+        services = [(f"{name}-backend", f"{name}-backend"), (f"{name}-frontend", f"{name}-frontend")]
+    else:
+        services = [(name, name)]
+    
+    for service_name, pid_name in services:
+        pid_file = os.path.join(base_dir, 'logs', f'{pid_name}.pid')
+        
+        if os.path.exists(pid_file):
+            with open(pid_file, 'r') as f:
+                pid = f.read().strip()
+            
+            try:
+                os.kill(int(pid), 0)
+                print(f"    ✅ {service_name} (PID: {pid})")
+            except (OSError, ValueError):
+                print(f"    ❌ {service_name} (PID file exists but process not running)")
+        else:
+            print(f"    ❌ {service_name}")
+    
+    for route in app.get('routes', []):
+        path = route.get('path', '')
+        target = route.get('target', '')
+        print(f"    → {path} → {target}")
+    
+    print("")
+
+print("🔌 Port Usage:")
+print("")
+http_port = config.get('caddy', {}).get('http_port', 8880)
+print(f"  Caddy:     {http_port}")
+
+for app in config.get('apps', []):
+    enabled = app.get('enabled', True)
+    if enabled is False:
+        continue
+    for route in app.get('routes', []):
+        target = route.get('target', '')
+        if ':' in target and 'localhost' in target:
+            port = target.split(':')[-1]
+            name = app.get('name')
+            result = subprocess.run(['lsof', '-i', f':{port}'], capture_output=True, text=True)
+            status = "🟢" if result.returncode == 0 else "🔴"
+            print(f"  {name}:     {port} {status}")
+PYTHON_SCRIPT
+}
+
+# 重载Caddy配置
+reload_caddy() {
+    echo -e "${BLUE}Reloading Caddy configuration...${NC}"
+    
+    "$SCRIPT_DIR/generate-caddyfile.sh"
+    
+    if pgrep -x "caddy" > /dev/null; then
+        caddy reload --config "$BASE_DIR/Caddyfile"
+        echo -e "${GREEN}✅ Caddy configuration reloaded${NC}"
+    else
+        echo -e "${YELLOW}Caddy is not running. Use 'start' to start services.${NC}"
+    fi
+}
+
 # 主函数
 main() {
     check_deps
@@ -599,13 +856,27 @@ main() {
             show_ports
             ;;
         start)
-            start_app "$2"
+            if [ -z "$2" ]; then
+                start_all
+            else
+                start_app "$2"
+            fi
             ;;
         stop)
-            stop_app "$2"
+            if [ -z "$2" ]; then
+                stop_all
+            else
+                stop_app "$2"
+            fi
             ;;
         restart)
             restart_app "$2"
+            ;;
+        status)
+            show_status
+            ;;
+        reload)
+            reload_caddy
             ;;
         *)
             show_help
