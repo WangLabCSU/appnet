@@ -51,6 +51,11 @@ if landing_enabled:
     lines.append(f"        file_server")
     lines.append(f"    }}")
     lines.append("")
+    lines.append(f"    @static file *.jpeg *.jpg *.png *.gif *.svg *.css *.js *.ico")
+    lines.append(f"    handle @static {{")
+    lines.append(f"        file_server")
+    lines.append(f"    }}")
+    lines.append("")
 
 apps = config.get('apps', [])
 for app in apps:

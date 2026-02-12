@@ -11,6 +11,11 @@
         file_server
     }
 
+    @static file *.jpeg *.jpg *.png *.gif *.svg *.css *.js *.ico
+    handle @static {
+        file_server
+    }
+
     handle /demo1/api/* {
         uri strip_prefix /demo1/api
         reverse_proxy localhost:28881
