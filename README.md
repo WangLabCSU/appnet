@@ -5,10 +5,11 @@
 ## ✨ 特性
 
 - **统一配置管理** - 使用YAML配置文件管理所有应用
-- **应用生命周期管理** - 支持添加、删除、更新应用
+- **应用生命周期管理** - 支持添加、删除、启动、停止、重启应用
+- **Landing Page** - 炫酷的团队展示页面，支持中英文切换
 - **前后端分离支持** - 内置跨域解决方案
 - **动态配置生成** - 自动根据配置生成Caddyfile
-- **完整的运维脚本** - 启动、停止、状态检查、端口管理
+- **统一的命令行工具** - 所有运维操作通过 `app-manager.sh` 完成
 - **Git版本控制** - 配置变更可追溯
 
 ## 📁 目录结构
@@ -19,23 +20,15 @@ appnet/
 │   └── apps.yaml          # 应用配置文件
 ├── apps/                  # 应用目录
 │   ├── demo1/            # 前后端分离示例
-│   │   ├── backend/      # 后端API
-│   │   ├── frontend/     # 前端应用
-│   │   └── README.md
-│   └── demo2/            # 单体应用示例
-│       ├── app.js
-│       ├── index.html
-│       └── package.json
-├── scripts/               # 管理脚本
-│   ├── start.sh          # 启动所有服务
-│   ├── stop.sh           # 停止所有服务
-│   ├── status.sh         # 查看服务状态
-│   ├── app-manager.sh    # 应用管理工具
-│   └── generate-caddyfile.sh  # Caddyfile生成器
-├── logs/                  # 日志目录
-├── docs/                  # 文档目录
+│   ├── demo2/            # 单体应用示例
+│   └── otk/              # 自定义应用示例
+├── landing/              # Landing Page
+│   ├── index.html        # 团队展示页面
+│   └── wsx.jpeg          # PI照片
+├── scripts/              # 管理脚本
+│   └── app-manager.sh    # 统一管理工具
+├── logs/                 # 日志目录
 ├── Caddyfile             # Caddy配置文件(自动生成)
-├── .gitignore            # Git忽略配置
 └── README.md             # 本文件
 ```
 
@@ -59,58 +52,62 @@ pip3 install pyyaml
 
 ```bash
 cd /home/bio/manage/appnet
-./scripts/start.sh
+
+# 启动所有服务和Caddy
+./scripts/app-manager.sh start
+
+# 或启动单个应用
+./scripts/app-manager.sh start otk
 ```
 
 ### 3. 查看状态
 
 ```bash
-./scripts/status.sh
+./scripts/app-manager.sh status
 ```
 
 ### 4. 停止服务
 
 ```bash
-./scripts/stop.sh
+# 停止所有服务和Caddy
+./scripts/app-manager.sh stop
+
+# 或停止单个应用
+./scripts/app-manager.sh stop otk
 ```
 
 ## 📝 应用管理
 
-### 添加新应用
+### 统一管理命令
 
 ```bash
-# 添加单体应用
-./scripts/app-manager.sh add myapp monolith 3000
+# 查看帮助
+./scripts/app-manager.sh
 
-# 添加前后端分离应用
-./scripts/app-manager.sh add myapp fullstack 3000
+# 启动服务
+./scripts/app-manager.sh start           # 启动所有应用和Caddy
+./scripts/app-manager.sh start otk       # 启动单个应用
 
-# 添加代理应用
-./scripts/app-manager.sh add myapp proxy 3000
-```
+# 停止服务
+./scripts/app-manager.sh stop            # 停止所有服务和Caddy
+./scripts/app-manager.sh stop otk        # 停止单个应用
 
-### 删除应用
+# 重启应用
+./scripts/app-manager.sh restart otk     # 重启单个应用
 
-```bash
-./scripts/app-manager.sh remove myapp
-```
+# 查看状态
+./scripts/app-manager.sh status          # 查看所有服务状态
 
-### 列出所有应用
+# 配置管理
+./scripts/app-manager.sh list            # 列出所有应用
+./scripts/app-manager.sh ports           # 显示端口使用情况
+./scripts/app-manager.sh update          # 更新配置并重启Caddy
+./scripts/app-manager.sh reload          # 重载Caddy配置
 
-```bash
-./scripts/app-manager.sh list
-```
-
-### 查看端口使用情况
-
-```bash
-./scripts/app-manager.sh ports
-```
-
-### 更新配置
-
-```bash
-./scripts/app-manager.sh update
+# 应用管理
+./scripts/app-manager.sh add myapp monolith 3000    # 添加单体应用
+./scripts/app-manager.sh add myapp fullstack 3000  # 添加前后端分离应用
+./scripts/app-manager.sh remove myapp               # 删除应用
 ```
 
 ## ⚙️ 配置文件
@@ -124,11 +121,14 @@ caddy:
   admin_port: 2019
   auto_https: false
 
-# 默认跳转
-default_redirect: https://oncoharmony-network.github.io/
+# Landing Page 配置
+landing:
+  enabled: true
+  path: /home/bio/manage/appnet/landing
 
 # 应用列表
 apps:
+  # 前后端分离应用
   - name: demo1
     type: fullstack
     description: "Gene Expression Analysis"
@@ -142,6 +142,7 @@ apps:
         type: frontend
         strip_prefix: true
 
+  # 单体应用
   - name: demo2
     type: monolith
     description: "Survival Analysis"
@@ -150,17 +151,48 @@ apps:
         target: localhost:28882
         type: full
         strip_prefix: true
+
+  # 自定义启动脚本应用
+  - name: otk
+    type: custom
+    description: "OTK Prediction API"
+    start_script: otk_api/start_api.sh
+    env:
+      API_PORT: 28884
+      OTK_BASE_PATH: /otk
+    routes:
+      - path: /otk
+        target: localhost:28884
+        type: full
+        strip_prefix: false
+
+  # 外部跳转
+  - name: shiny
+    type: redirect
+    routes:
+      - path: /shiny
+        target: http://biotree.top:38124/
 ```
 
 ## 🌐 访问地址
 
 | 应用 | 访问地址 | 说明 |
 |-----|---------|------|
-| 默认 | http://server:8880/ | 跳转到OncoHarmony |
-| Demo1 | http://server:8880/demo1 | 前后端分离应用 |
-| Demo1 API | http://server:8880/demo1/api | 后端API |
-| Demo2 | http://server:8880/demo2 | 单体应用 |
-| Shiny | http://server:8880/shiny | R Shiny应用 |
+| Landing Page | http://server:8880/ | WangLab团队展示页面 |
+| OTK API | http://server:8880/otk/ | ecDNA预测分析平台 |
+| Demo1 | http://server:8880/demo1/ | 前后端分离应用 |
+| Demo2 | http://server:8880/demo2/ | 单体应用 |
+| Shiny | http://server:8880/shiny | R Shiny应用(跳转) |
+
+## 🎨 Landing Page
+
+Landing Page 展示了以下内容：
+- **实验室信息**: LISOM (Laboratory of In Silico Oncology and Medicine)
+- **PI 简介**: 王诗翔教授信息
+- **统计数据**: 开源项目、学术论文、引用数
+- **应用平台**: 所有应用的入口链接
+- **团队链接**: GitHub、飞书、学术资源等
+- **中英文切换**: 支持一键切换语言
 
 ## 🔧 跨域解决方案
 
@@ -186,7 +218,7 @@ Demo1展示了前后端分离的跨域解决方案：
 | Demo1 Backend | 28881 | API服务 |
 | Demo1 Frontend | 28883 | 前端服务 |
 | Demo2 | 28882 | 完整应用 |
-| Shiny | 3838 | 外部Shiny |
+| OTK API | 28884 | Python/FastAPI |
 
 ## 🛠️ 开发指南
 
@@ -201,7 +233,22 @@ Demo1展示了前后端分离的跨域解决方案：
 
 - **fullstack**: 前后端分离，包含backend和frontend目录
 - **monolith**: 单体应用，所有代码在一个目录
+- **custom**: 自定义启动脚本，需要指定 `start_script`
 - **proxy**: 仅代理配置，不管理应用进程
+- **redirect**: 跳转到外部URL
+
+### 禁用应用
+
+在配置中设置 `enabled: false`：
+
+```yaml
+- name: oldapp
+  type: monolith
+  enabled: false
+  routes:
+    - path: /oldapp
+      target: localhost:28000
+```
 
 ## 📝 日志
 
@@ -209,6 +256,16 @@ Demo1展示了前后端分离的跨域解决方案：
 - `access.log` - Caddy访问日志
 - `{app-name}.log` - 应用日志
 - `{app-name}.pid` - 进程ID文件
+
+查看日志：
+
+```bash
+# 查看应用日志
+tail -f logs/otk.log
+
+# 查看Caddy访问日志
+tail -f logs/access.log
+```
 
 ## 🔒 Git版本控制
 
@@ -239,8 +296,11 @@ fuser -k 8880/tcp
 ### 服务无法启动
 
 ```bash
+# 查看状态
+./scripts/app-manager.sh status
+
 # 查看日志
-tail -f logs/demo1-backend.log
+tail -f logs/otk.log
 
 # 检查配置
 ./scripts/app-manager.sh list
@@ -249,8 +309,12 @@ tail -f logs/demo1-backend.log
 ### 重新生成Caddyfile
 
 ```bash
-./scripts/generate-caddyfile.sh
+./scripts/app-manager.sh reload
 ```
+
+### 应用无法通过代理访问
+
+检查Caddy路由顺序，应用路由应该优先于landing page处理器。
 
 ## 📄 许可证
 
