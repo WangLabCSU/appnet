@@ -6,16 +6,6 @@
 :8880 {
     root * /home/bio/manage/appnet/landing
 
-    @landing path /
-    handle @landing {
-        file_server
-    }
-
-    @static file *.jpeg *.jpg *.png *.gif *.svg *.css *.js *.ico
-    handle @static {
-        file_server
-    }
-
     handle /demo1/api/* {
         uri strip_prefix /demo1/api
         reverse_proxy localhost:28881
@@ -37,6 +27,19 @@
 
     redir /shiny http://biotree.top:38124/
     redir /shiny/* http://biotree.top:38124/
+
+    @landing path /
+    handle @landing {
+        file_server
+    }
+
+    @static {
+        path *.jpeg *.jpg *.png *.gif *.svg *.css *.js *.ico
+        file
+    }
+    handle @static {
+        file_server
+    }
 
     log {
         output file logs/access.log

@@ -46,16 +46,6 @@ lines.append(f":{http_port} {{")
 if landing_enabled:
     lines.append(f"    root * {landing_path}")
     lines.append("")
-    lines.append(f"    @landing path /")
-    lines.append(f"    handle @landing {{")
-    lines.append(f"        file_server")
-    lines.append(f"    }}")
-    lines.append("")
-    lines.append(f"    @static file *.jpeg *.jpg *.png *.gif *.svg *.css *.js *.ico")
-    lines.append(f"    handle @static {{")
-    lines.append(f"        file_server")
-    lines.append(f"    }}")
-    lines.append("")
 
 apps = config.get('apps', [])
 for app in apps:
@@ -115,6 +105,21 @@ for app in apps:
             lines.append(f"        reverse_proxy {target}")
             lines.append(f"    }}")
         lines.append("")
+
+if landing_enabled:
+    lines.append(f"    @landing path /")
+    lines.append(f"    handle @landing {{")
+    lines.append(f"        file_server")
+    lines.append(f"    }}")
+    lines.append("")
+    lines.append(f"    @static {{")
+    lines.append(f"        path *.jpeg *.jpg *.png *.gif *.svg *.css *.js *.ico")
+    lines.append(f"        file")
+    lines.append(f"    }}")
+    lines.append(f"    handle @static {{")
+    lines.append(f"        file_server")
+    lines.append(f"    }}")
+    lines.append("")
 
 lines.append("    log {")
 lines.append("        output file logs/access.log")
