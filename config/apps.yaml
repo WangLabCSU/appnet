@@ -82,11 +82,12 @@ apps:
     start_script: otk_api/start_api.sh
     env:
       API_PORT: 28884
+      OTK_BASE_PATH: /otk
     routes:
       - path: /otk
         target: localhost:28884
         type: full
-        strip_prefix: true
+        strip_prefix: false
 
   # Shiny Server - 跳转到外部地址
   - name: shiny

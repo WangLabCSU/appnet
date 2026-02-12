@@ -71,6 +71,7 @@ for app in apps:
         path = route.get('path', '')
         target = route.get('target', '')
         route_type = route.get('type', 'full')
+        strip_prefix = route.get('strip_prefix', True)
         
         # 根据路由类型生成不同的配置
         if route_type == 'api':
@@ -79,14 +80,27 @@ for app in apps:
             lines.append(f"        uri strip_prefix /{app_name}/api")
             lines.append(f"        reverse_proxy {target}")
             lines.append(f"    }}")
-        else:
-            # 前端或完整应用路由
-            lines.append(f"    handle /{app_name}/* {{")
-            lines.append(f"        uri strip_prefix /{app_name}")
-            lines.append(f"        reverse_proxy {target}")
-            lines.append(f"    }}")
+        elif strip_prefix:
+            # 需要剥离前缀的路由
+            if app_name == 'otk':
+                # OTK 特殊处理：使用 handle_path 剥离前缀，
+                # 同时用 header_up 告知后端应用原始路径
+                lines.append(f"    handle_path /{app_name}/* {{")
+                lines.append(f"        reverse_proxy {target} {{")
+                lines.append(f"            header_up X-Forwarded-Prefix /{app_name}")
+                lines.append(f"        }}")
+                lines.append(f"    }}")
+            else:
+                lines.append(f"    handle_path /{app_name}/* {{")
+                lines.append(f"        reverse_proxy {target}")
+                lines.append(f"    }}")
             # 添加不带斜杠的重定向
             lines.append(f"    redir /{app_name} /{app_name}/ 308")
+        else:
+            # 不剥离前缀的路由
+            lines.append(f"    handle /{app_name}/* {{")
+            lines.append(f"        reverse_proxy {target}")
+            lines.append(f"    }}")
         lines.append("")
 
 lines.append("    log {")

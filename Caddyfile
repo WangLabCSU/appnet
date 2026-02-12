@@ -12,23 +12,19 @@
         reverse_proxy localhost:28881
     }
 
-    handle /demo1/* {
-        uri strip_prefix /demo1
+    handle_path /demo1/* {
         reverse_proxy localhost:28883
     }
     redir /demo1 /demo1/ 308
 
-    handle /demo2/* {
-        uri strip_prefix /demo2
+    handle_path /demo2/* {
         reverse_proxy localhost:28882
     }
     redir /demo2 /demo2/ 308
 
     handle /otk/* {
-        uri strip_prefix /otk
         reverse_proxy localhost:28884
     }
-    redir /otk /otk/ 308
 
     redir /shiny http://biotree.top:38124/
     redir /shiny/* http://biotree.top:38124/
