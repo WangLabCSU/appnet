@@ -511,20 +511,49 @@ stop_app() {
     
     echo -e "${YELLOW}Stopping app: $name${NC}"
     
-    # 停止应用进程
+    # 获取应用端口
+    local ports=$(python3 -c "
+import yaml
+config_file = '$CONFIG_FILE'
+with open(config_file, 'r') as f:
+    config = yaml.safe_load(f)
+for app in config.get('apps', []):
+    if app.get('name') == '$name':
+        for route in app.get('routes', []):
+            target = route.get('target', '')
+            if ':' in target:
+                print(target.split(':')[-1])
+" 2>/dev/null)
+    
+    # 停止应用进程（通过PID文件）
     stopped=0
     for pid_file in "$BASE_DIR/logs/${name}"*.pid; do
         if [ -f "$pid_file" ]; then
             pid=$(cat "$pid_file" 2>/dev/null)
             if [ -n "$pid" ]; then
                 if kill "$pid" 2>/dev/null; then
-                    echo "✅ Stopped process $pid"
+                    echo "✅ Stopped process $pid (from PID file)"
                     stopped=1
                 else
                     echo "⚠️  Process $pid not running"
                 fi
             fi
             rm -f "$pid_file"
+        fi
+    done
+    
+    # 通过端口停止进程
+    for port in $ports; do
+        if [ -n "$port" ]; then
+            pids=$(lsof -ti:$port 2>/dev/null)
+            if [ -n "$pids" ]; then
+                for pid in $pids; do
+                    if kill "$pid" 2>/dev/null; then
+                        echo "✅ Stopped process $pid (on port $port)"
+                        stopped=1
+                    fi
+                done
+            fi
         fi
     done
     
