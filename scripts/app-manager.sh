@@ -30,12 +30,18 @@ AppNet 应用管理工具
     list                        列出所有应用
     update                      更新配置并重启Caddy
     ports                       显示端口使用情况
+    start <name>                启动单个应用
+    stop <name>                 停止单个应用
+    restart <name>              重启单个应用
     
 示例:
     $0 add myapp monolith 3000
     $0 remove myapp
     $0 list
     $0 update
+    $0 start otk
+    $0 stop otk
+    $0 restart otk
 
 EOF
 }
@@ -342,6 +348,207 @@ print(f"\n{'Caddy':<15} {'':<20} {'localhost:{config.get('caddy', {}).get('http_
 PYTHON_SCRIPT
 }
 
+# 启动单个应用
+start_app() {
+    local name=$1
+    
+    if [ -z "$name" ]; then
+        echo -e "${RED}Error: Missing app name${NC}"
+        show_help
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Starting app: $name${NC}"
+    
+    python3 << PYTHON_SCRIPT
+import yaml
+import os
+import subprocess
+import sys
+
+config_file = "$CONFIG_FILE"
+base_dir = "$BASE_DIR"
+app_name = "$name"
+
+with open(config_file, 'r') as f:
+    config = yaml.safe_load(f)
+
+# 查找应用
+app = None
+for a in config.get('apps', []):
+    if a.get('name') == app_name:
+        app = a
+        break
+
+if not app:
+    print(f"❌ App '{app_name}' not found in config")
+    sys.exit(1)
+
+app_type = app.get('type')
+enabled = app.get('enabled', True)
+
+if enabled is False:
+    print(f"⏸️  App '{app_name}' is disabled")
+    sys.exit(1)
+
+if app_type in ['proxy', 'redirect']:
+    print(f"⏭️  App '{app_name}' is proxy/redirect type, no need to start")
+    sys.exit(0)
+
+app_dir = os.path.join(base_dir, 'apps', app_name)
+
+if not os.path.exists(app_dir):
+    print(f"❌ App directory not found: {app_dir}")
+    sys.exit(1)
+
+os.makedirs(os.path.join(base_dir, 'logs'), exist_ok=True)
+
+if app_type == 'custom':
+    start_script = app.get('start_script')
+    if start_script:
+        script_path = os.path.join(app_dir, start_script)
+        if os.path.exists(script_path):
+            os.chdir(app_dir)
+            
+            env = os.environ.copy()
+            app_env = app.get('env', {})
+            for key, value in app_env.items():
+                env[key] = str(value)
+            
+            log_file = os.path.join(base_dir, 'logs', f'{app_name}.log')
+            pid_file = os.path.join(base_dir, 'logs', f'{app_name}.pid')
+            
+            with open(log_file, 'w') as log:
+                proc = subprocess.Popen(['bash', script_path], 
+                                       stdout=log, 
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True,
+                                       env=env)
+                with open(pid_file, 'w') as pf:
+                    pf.write(str(proc.pid))
+                print(f"✅ Started {app_name} with PID {proc.pid}")
+            os.chdir(base_dir)
+        else:
+            print(f"❌ Start script not found: {script_path}")
+            sys.exit(1)
+    else:
+        print(f"❌ No start_script defined for custom app")
+        sys.exit(1)
+
+elif app_type == 'monolith':
+    if os.path.exists(os.path.join(app_dir, 'package.json')):
+        os.chdir(app_dir)
+        if not os.path.exists('node_modules'):
+            subprocess.run(['npm', 'install'], capture_output=True)
+        
+        log_file = os.path.join(base_dir, 'logs', f'{app_name}.log')
+        pid_file = os.path.join(base_dir, 'logs', f'{app_name}.pid')
+        
+        with open(log_file, 'w') as log:
+            proc = subprocess.Popen(['npm', 'start'], 
+                                   stdout=log, 
+                                   stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+            with open(pid_file, 'w') as pf:
+                pf.write(str(proc.pid))
+            print(f"✅ Started {app_name} with PID {proc.pid}")
+        os.chdir(base_dir)
+    else:
+        print(f"❌ No package.json found")
+        sys.exit(1)
+
+elif app_type == 'fullstack':
+    backend_dir = os.path.join(app_dir, 'backend')
+    frontend_dir = os.path.join(app_dir, 'frontend')
+    
+    if os.path.exists(os.path.join(backend_dir, 'package.json')):
+        os.chdir(backend_dir)
+        if not os.path.exists('node_modules'):
+            subprocess.run(['npm', 'install'], capture_output=True)
+        
+        log_file = os.path.join(base_dir, 'logs', f'{app_name}-backend.log')
+        pid_file = os.path.join(base_dir, 'logs', f'{app_name}-backend.pid')
+        
+        with open(log_file, 'w') as log:
+            proc = subprocess.Popen(['npm', 'start'], 
+                                   stdout=log, 
+                                   stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+            with open(pid_file, 'w') as pf:
+                pf.write(str(proc.pid))
+            print(f"✅ Started {app_name}-backend with PID {proc.pid}")
+        os.chdir(base_dir)
+    
+    if os.path.exists(os.path.join(frontend_dir, 'package.json')):
+        os.chdir(frontend_dir)
+        if not os.path.exists('node_modules'):
+            subprocess.run(['npm', 'install'], capture_output=True)
+        
+        log_file = os.path.join(base_dir, 'logs', f'{app_name}-frontend.log')
+        pid_file = os.path.join(base_dir, 'logs', f'{app_name}-frontend.pid')
+        
+        with open(log_file, 'w') as log:
+            proc = subprocess.Popen(['npm', 'start'], 
+                                   stdout=log, 
+                                   stderr=subprocess.STDOUT,
+                                   start_new_session=True)
+            with open(pid_file, 'w') as pf:
+                pf.write(str(proc.pid))
+            print(f"✅ Started {app_name}-frontend with PID {proc.pid}")
+        os.chdir(base_dir)
+PYTHON_SCRIPT
+}
+
+# 停止单个应用
+stop_app() {
+    local name=$1
+    
+    if [ -z "$name" ]; then
+        echo -e "${RED}Error: Missing app name${NC}"
+        show_help
+        exit 1
+    fi
+    
+    echo -e "${YELLOW}Stopping app: $name${NC}"
+    
+    # 停止应用进程
+    stopped=0
+    for pid_file in "$BASE_DIR/logs/${name}"*.pid; do
+        if [ -f "$pid_file" ]; then
+            pid=$(cat "$pid_file" 2>/dev/null)
+            if [ -n "$pid" ]; then
+                if kill "$pid" 2>/dev/null; then
+                    echo "✅ Stopped process $pid"
+                    stopped=1
+                else
+                    echo "⚠️  Process $pid not running"
+                fi
+            fi
+            rm -f "$pid_file"
+        fi
+    done
+    
+    if [ $stopped -eq 0 ]; then
+        echo -e "${YELLOW}No running processes found for $name${NC}"
+    fi
+}
+
+# 重启单个应用
+restart_app() {
+    local name=$1
+    
+    if [ -z "$name" ]; then
+        echo -e "${RED}Error: Missing app name${NC}"
+        show_help
+        exit 1
+    fi
+    
+    echo -e "${BLUE}Restarting app: $name${NC}"
+    stop_app "$name"
+    sleep 2
+    start_app "$name"
+}
+
 # 主函数
 main() {
     check_deps
@@ -361,6 +568,15 @@ main() {
             ;;
         ports)
             show_ports
+            ;;
+        start)
+            start_app "$2"
+            ;;
+        stop)
+            stop_app "$2"
+            ;;
+        restart)
+            restart_app "$2"
             ;;
         *)
             show_help
