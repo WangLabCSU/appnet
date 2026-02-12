@@ -135,10 +135,11 @@ for app in apps:
                 print(f"🚀 Starting {name} (custom script)...")
                 os.chdir(app_dir)
                 
-                # 准备环境变量
+                # 准备环境变量（确保所有值都是字符串）
                 env = os.environ.copy()
                 app_env = app.get('env', {})
-                env.update(app_env)
+                for key, value in app_env.items():
+                    env[key] = str(value)
                 
                 log_file = os.path.join(base_dir, 'logs', f'{name}.log')
                 pid_file = os.path.join(base_dir, 'logs', f'{name}.pid')
