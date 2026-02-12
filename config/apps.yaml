@@ -46,8 +46,10 @@ caddy:
   admin_port: 2019
   auto_https: false
 
-# 默认跳转
-default_redirect: https://oncoharmony-network.github.io/
+# Landing Page 配置
+landing:
+  enabled: true
+  path: /home/bio/manage/appnet/landing
 
 # 应用列表
 apps:

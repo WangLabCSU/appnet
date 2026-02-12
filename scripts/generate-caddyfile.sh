@@ -31,7 +31,9 @@ except Exception as e:
 caddy_config = config.get('caddy', {})
 http_port = caddy_config.get('http_port', 8880)
 auto_https = caddy_config.get('auto_https', False)
-default_redirect = config.get('default_redirect', 'https://oncoharmony-network.github.io/')
+landing = config.get('landing', {})
+landing_enabled = landing.get('enabled', False)
+landing_path = landing.get('path', '/home/bio/manage/appnet/landing')
 
 lines = []
 lines.append("{")
@@ -40,9 +42,15 @@ lines.append(f"    auto_https {'on' if auto_https else 'off'}")
 lines.append("}")
 lines.append("")
 lines.append(f":{http_port} {{")
-lines.append(f"    @default path /")
-lines.append(f"    redir @default {default_redirect}")
-lines.append("")
+
+if landing_enabled:
+    lines.append(f"    root * {landing_path}")
+    lines.append("")
+    lines.append(f"    @landing path /")
+    lines.append(f"    handle @landing {{")
+    lines.append(f"        file_server")
+    lines.append(f"    }}")
+    lines.append("")
 
 apps = config.get('apps', [])
 for app in apps:

@@ -4,8 +4,12 @@
 }
 
 :8880 {
-    @default path /
-    redir @default https://oncoharmony-network.github.io/
+    root * /home/bio/manage/appnet/landing
+
+    @landing path /
+    handle @landing {
+        file_server
+    }
 
     handle /demo1/api/* {
         uri strip_prefix /demo1/api

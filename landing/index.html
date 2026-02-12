@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WangLab - LISOM | 计算肿瘤学与医学信息学实验室</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=ZCOOL+XiaoWei&family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00f5d4;
+            --secondary: #7b2cbf;
+            --accent: #ff6b6b;
+            --accent2: #ffd93d;
+            --dark: #0a0a0f;
+            --darker: #050508;
+            --light: #e0e0e0;
+            --glow: rgba(0, 245, 212, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Serif SC', sans-serif;
+            background: var(--darker);
+            color: var(--light);
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        .chinese-text {
+            font-family: 'Noto Serif SC', 'ZCOOL XiaoWei', serif;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #particles-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(0, 245, 212, 0.1);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--dark);
+            box-shadow: 0 0 20px var(--glow);
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .lang-switch {
+            display: flex;
+            gap: 10px;
+        }
+
+        .lang-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .lang-btn:hover, .lang-btn.active {
+            background: var(--primary);
+            color: var(--dark);
+        }
+
+        .hero {
+            text-align: center;
+            padding: 80px 20px 60px;
+            position: relative;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(123, 44, 191, 0.12) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .hero-title .main {
+            display: block;
+            background: linear-gradient(90deg, var(--primary), #fff, var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmer 3s ease-in-out infinite;
+            background-size: 200% 100%;
+        }
+
+        .hero-title .sub {
+            display: block;
+            font-size: 2rem;
+            color: var(--secondary);
+            margin-top: 10px;
+            opacity: 0.9;
+            font-weight: 600;
+            letter-spacing: 8px;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .hero-affiliation {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: var(--primary);
+            opacity: 0.8;
+        }
+
+        .hero-quote {
+            font-size: 1.1rem;
+            color: var(--accent);
+            opacity: 0.9;
+            margin-top: 25px;
+            padding: 15px 25px;
+            border-left: 3px solid var(--accent);
+            background: rgba(255, 107, 107, 0.05);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .pi-section {
+            padding: 60px 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .pi-card {
+            display: flex;
+            gap: 40px;
+            max-width: 900px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 245, 212, 0.1);
+            border-radius: 24px;
+            padding: 40px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .pi-badge {
+            position: absolute;
+            top: -12px;
+            left: 30px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: var(--dark);
+            padding: 4px 16px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .pi-card:hover {
+            border-color: rgba(0, 245, 212, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 245, 212, 0.08);
+        }
+
+        .pi-avatar {
+            width: 150px;
+            height: 150px;
+            min-width: 150px;
+            border-radius: 50%;
+            overflow: hidden;
+            box-shadow: 0 0 40px var(--glow);
+            border: 3px solid rgba(0, 245, 212, 0.3);
+        }
+
+        .pi-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .pi-info {
+            flex: 1;
+        }
+
+        .pi-name {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, var(--primary), var(--light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .pi-title {
+            font-size: 1rem;
+            color: var(--secondary);
+            margin-bottom: 15px;
+            opacity: 0.9;
+        }
+
+        .pi-bio {
+            font-size: 0.95rem;
+            line-height: 1.8;
+            color: var(--light);
+            opacity: 0.75;
+            margin-bottom: 20px;
+        }
+
+        .pi-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .pi-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: rgba(0, 245, 212, 0.08);
+            border: 1px solid rgba(0, 245, 212, 0.2);
+            border-radius: 20px;
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .pi-link:hover {
+            background: var(--primary);
+            color: var(--dark);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            padding: 50px 0;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 25px 20px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 245, 212, 0.1);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+            box-shadow: 0 10px 40px rgba(0, 245, 212, 0.1);
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            margin-top: 8px;
+            color: var(--light);
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        .section {
+            padding: 60px 0;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            margin: 15px auto 0;
+            border-radius: 2px;
+        }
+
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        .app-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 245, 212, 0.1);
+            border-radius: 20px;
+            padding: 28px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .app-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .app-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(0, 245, 212, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 245, 212, 0.1);
+        }
+
+        .app-icon {
+            width: 55px;
+            height: 55px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            margin-bottom: 18px;
+        }
+
+        .app-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--light);
+        }
+
+        .app-desc {
+            color: var(--light);
+            opacity: 0.7;
+            margin-bottom: 18px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .app-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 18px;
+        }
+
+        .app-tag {
+            padding: 3px 10px;
+            background: rgba(0, 245, 212, 0.1);
+            border: 1px solid rgba(0, 245, 212, 0.2);
+            border-radius: 15px;
+            font-size: 0.75rem;
+            color: var(--primary);
+        }
+
+        .app-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            border-radius: 25px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .app-link:hover {
+            background: var(--primary);
+            color: var(--dark);
+        }
+
+        .links-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        .links-group {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(0, 245, 212, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+        }
+
+        .links-group-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .links-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .link-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(0, 245, 212, 0.03);
+            border: 1px solid rgba(0, 245, 212, 0.08);
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--light);
+            transition: all 0.3s ease;
+        }
+
+        .link-item:hover {
+            border-color: var(--primary);
+            transform: translateX(5px);
+            background: rgba(0, 245, 212, 0.08);
+        }
+
+        .link-icon {
+            width: 42px;
+            height: 42px;
+            background: rgba(0, 245, 212, 0.1);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .link-text {
+            flex: 1;
+        }
+
+        .link-title {
+            font-weight: 600;
+            margin-bottom: 3px;
+            font-size: 0.95rem;
+        }
+
+        .link-desc {
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        .terminal {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 245, 212, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 40px 0;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .terminal-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.red { background: #ff5f56; }
+        .terminal-dot.yellow { background: #ffbd2e; }
+        .terminal-dot.green { background: #27ca40; }
+
+        .terminal-body {
+            color: var(--primary);
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .terminal-line::before {
+            content: '$ ';
+            color: var(--accent);
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid rgba(0, 245, 212, 0.1);
+            margin-top: 40px;
+        }
+
+        .footer-text {
+            opacity: 0.6;
+            font-size: 0.9rem;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: opacity 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .footer-links a:hover {
+            opacity: 0.7;
+        }
+
+        @media (max-width: 1024px) {
+            .links-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.2rem;
+            }
+
+            .hero-title .sub {
+                font-size: 1.4rem;
+                letter-spacing: 4px;
+            }
+
+            .pi-card {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                padding: 30px;
+            }
+
+            .pi-links {
+                justify-content: center;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .apps-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--darker);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="particles-canvas"></canvas>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">王</div>
+                <span class="logo-text chinese-text">WangLab</span>
+            </div>
+            <div class="lang-switch">
+                <button class="lang-btn active" onclick="setLanguage('zh')">中文</button>
+                <button class="lang-btn" onclick="setLanguage('en')">English</button>
+            </div>
+        </header>
+
+        <section class="hero">
+            <h1 class="hero-title">
+                <span class="main chinese-text" data-zh="计算肿瘤学与医学信息学实验室" data-en="Laboratory of In Silico Oncology and Medicine">计算肿瘤学与医学信息学实验室</span>
+                <span class="sub" data-zh="LISOM" data-en="LISOM">LISOM</span>
+            </h1>
+            <p class="hero-affiliation chinese-text" data-zh="中南大学生命科学学院" data-en="School of Life Sciences, Central South University">
+                中南大学生命科学学院
+            </p>
+            <div class="hero-quote chinese-text" data-zh="「以计算之力，探肿瘤之秘；借数据之眼，观生命之变」" data-en="'Exploring cancer mysteries through computation; Observing life changes through data'">
+                「以计算之力，探肿瘤之秘；借数据之眼，观生命之变」
+            </div>
+        </section>
+
+        <section class="stats">
+            <div class="stat-card">
+                <div class="stat-number">20+</div>
+                <div class="stat-label" data-zh="开源项目" data-en="Open Source Projects">开源项目</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">40+</div>
+                <div class="stat-label" data-zh="学术论文" data-en="Publications">学术论文</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">1800+</div>
+                <div class="stat-label" data-zh="学术引用" data-en="Citations">学术引用</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">1K+</div>
+                <div class="stat-label" data-zh="GitHub Stars" data-en="GitHub Stars">GitHub Stars</div>
+            </div>
+        </section>
+
+        <section class="section">
+            <h2 class="section-title chinese-text" data-zh="应用平台" data-en="Applications">应用平台</h2>
+            <div class="apps-grid">
+                <div class="app-card">
+                    <div class="app-icon">🧬</div>
+                    <h3 class="app-name">OTK Prediction API</h3>
+                    <p class="app-desc" data-zh="ecDNA预测分析平台，基于深度学习的肿瘤基因组学分析工具，支持同步/异步预测任务。" data-en="ecDNA prediction platform with deep learning-based cancer genomics analysis.">
+                        ecDNA预测分析平台，基于深度学习的肿瘤基因组学分析工具，支持同步/异步预测任务。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">Python</span>
+                        <span class="app-tag">FastAPI</span>
+                        <span class="app-tag">Deep Learning</span>
+                        <span class="app-tag">ecDNA</span>
+                    </div>
+                    <a href="/otk/" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">📊</div>
+                    <h3 class="app-name">Shiny Server</h3>
+                    <p class="app-desc" data-zh="交互式数据可视化与分析平台，提供丰富的生物信息学分析工具。" data-en="Interactive data visualization and analysis platform.">
+                        交互式数据可视化与分析平台，提供丰富的生物信息学分析工具。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">R</span>
+                        <span class="app-tag">Shiny</span>
+                        <span class="app-tag">Visualization</span>
+                    </div>
+                    <a href="/shiny" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">🧪</div>
+                    <h3 class="app-name">UCSCXenaShiny</h3>
+                    <p class="app-desc" data-zh="UCSC Xena数据交互式探索与分析工具，支持肿瘤多组学数据可视化。" data-en="Interactive exploration and analysis of UCSC Xena data with cancer multi-omics visualization.">
+                        UCSC Xena数据交互式探索与分析工具，支持肿瘤多组学数据可视化。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">R</span>
+                        <span class="app-tag">Shiny</span>
+                        <span class="app-tag">Genomics</span>
+                    </div>
+                    <a href="https://shiny.zhoulab.ac.cn/UCSCXenaShiny" target="_blank" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">🔄</div>
+                    <h3 class="app-name">TCCIA</h3>
+                    <p class="app-desc" data-zh="肿瘤免疫治疗circRNA资源数据库，探索circRNA在肿瘤免疫治疗中的作用。" data-en="Comprehensive resource for exploring CircRNA in cancer immunotherapy.">
+                        肿瘤免疫治疗circRNA资源数据库，探索circRNA在肿瘤免疫治疗中的作用。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">R</span>
+                        <span class="app-tag">Shiny</span>
+                        <span class="app-tag">circRNA</span>
+                    </div>
+                    <a href="http://shiny.zhoulab.ac.cn/TCCIA" target="_blank" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">🧬</div>
+                    <h3 class="app-name">ImmunoFusion</h3>
+                    <p class="app-desc" data-zh="免疫融合分析平台，整合多维度肿瘤微环境数据解码分析。" data-en="Multidimensional decoding of tumor microenvironment for immuno-oncology.">
+                        免疫融合分析平台，整合多维度肿瘤微环境数据解码分析。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">R</span>
+                        <span class="app-tag">Shiny</span>
+                        <span class="app-tag">Immunology</span>
+                    </div>
+                    <a href="http://shiny.zhoulab.ac.cn/ImmunoFusion/" target="_blank" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">📈</div>
+                    <h3 class="app-name">Hiplot</h3>
+                    <p class="app-desc" data-zh="综合性生物医学数据可视化平台，支持多种图表类型和数据分析功能。" data-en="Comprehensive and easy-to-use web service for biomedical data visualization.">
+                        综合性生物医学数据可视化平台，支持多种图表类型和数据分析功能。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">Visualization</span>
+                        <span class="app-tag">Web</span>
+                        <span class="app-tag">Bioinformatics</span>
+                    </div>
+                    <a href="https://hiplot.cn/" target="_blank" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">🎯</div>
+                    <h3 class="app-name">Bizard</h3>
+                    <p class="app-desc" data-zh="生物信息学向导工具，提供常用分析流程的可视化操作界面。" data-en="Bioinformatics wizard for common analysis workflows with visual interface.">
+                        生物信息学向导工具，提供常用分析流程的可视化操作界面。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">R</span>
+                        <span class="app-tag">Workflow</span>
+                        <span class="app-tag">Bioinformatics</span>
+                    </div>
+                    <a href="https://openbiox.github.io/Bizard/" target="_blank" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">📈</div>
+                    <h3 class="app-name">Demo1: Gene Expression</h3>
+                    <p class="app-desc" data-zh="基因表达分析演示应用，前后端分离架构示例。" data-en="Gene expression analysis demo with full-stack architecture.">
+                        基因表达分析演示应用，前后端分离架构示例。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">Node.js</span>
+                        <span class="app-tag">React</span>
+                        <span class="app-tag">Full Stack</span>
+                    </div>
+                    <a href="/demo1/" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+
+                <div class="app-card">
+                    <div class="app-icon">🎯</div>
+                    <h3 class="app-name">Demo2: Survival Analysis</h3>
+                    <p class="app-desc" data-zh="生存分析演示应用，单体应用架构示例。" data-en="Survival analysis demo with monolithic architecture.">
+                        生存分析演示应用，单体应用架构示例。
+                    </p>
+                    <div class="app-tags">
+                        <span class="app-tag">Node.js</span>
+                        <span class="app-tag">Statistics</span>
+                        <span class="app-tag">Monolith</span>
+                    </div>
+                    <a href="/demo2/" class="app-link">
+                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="links-section">
+                <div class="links-group">
+                    <h3 class="links-group-title chinese-text">
+                        🌟 <span data-zh="团队协作" data-en="Team Collaboration">团队协作</span>
+                    </h3>
+                    <div class="links-list">
+                        <a href="https://oncoharmony.feishu.cn/" target="_blank" class="link-item">
+                            <div class="link-icon">🪶</div>
+                            <div class="link-text">
+                                <div class="link-title">OncoHarmony 飞书</div>
+                                <div class="link-desc" data-zh="团队协作平台" data-en="Team Collaboration Platform">团队协作平台</div>
+                            </div>
+                        </a>
+                        <a href="https://github.com/WangLabCSU" target="_blank" class="link-item">
+                            <div class="link-icon">🐙</div>
+                            <div class="link-text">
+                                <div class="link-title">WangLab GitHub</div>
+                                <div class="link-desc" data-zh="实验室开源代码仓库" data-en="Lab Open Source Repository">实验室开源代码仓库</div>
+                            </div>
+                        </a>
+                        <a href="https://oncoharmony-network.github.io/" target="_blank" class="link-item">
+                            <div class="link-icon">🌐</div>
+                            <div class="link-text">
+                                <div class="link-title">OncoHarmony Network</div>
+                                <div class="link-desc" data-zh="肿瘤免疫协作网络" data-en="Cancer Immunotherapy Network">肿瘤免疫协作网络</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="links-group">
+                    <h3 class="links-group-title chinese-text">
+                        🔬 <span data-zh="学术资源" data-en="Academic Resources">学术资源</span>
+                    </h3>
+                    <div class="links-list">
+                        <a href="https://github.com/WangLabCSU/otk" target="_blank" class="link-item">
+                            <div class="link-icon">🧬</div>
+                            <div class="link-text">
+                                <div class="link-title">OTK Project</div>
+                                <div class="link-desc" data-zh="肿瘤工具包" data-en="Oncology Toolkit">肿瘤工具包</div>
+                            </div>
+                        </a>
+                        <a href="https://github.com/ShixiangWang/sigminer" target="_blank" class="link-item">
+                            <div class="link-icon">🔬</div>
+                            <div class="link-text">
+                                <div class="link-title">Sigminer</div>
+                                <div class="link-desc" data-zh="基因组变异签名分析" data-en="Genomic Signature Analysis">基因组变异签名分析</div>
+                            </div>
+                        </a>
+                        <a href="https://github.com/openbiox/UCSCXenaShiny" target="_blank" class="link-item">
+                            <div class="link-icon">📊</div>
+                            <div class="link-text">
+                                <div class="link-title">UCSCXenaShiny</div>
+                                <div class="link-desc" data-zh="UCSC Xena数据交互分析" data-en="UCSC Xena Data Analysis">UCSC Xena数据交互分析</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="pi-section">
+            <div class="pi-card">
+                <div class="pi-badge">PI</div>
+                <div class="pi-avatar">
+                    <img src="https://scholar.googleusercontent.com/citations?view_op=medium_photo&user=FvNp0NkAAAAJ&citpid=9" alt="Shixiang Wang">
+                </div>
+                <div class="pi-info">
+                    <h2 class="pi-name chinese-text" data-zh="王诗翔" data-en="Shixiang Wang">王诗翔</h2>
+                    <p class="pi-title" data-zh="特聘副教授 · 硕士生导师" data-en="Associate Professor · Master's Supervisor">特聘副教授 · 硕士生导师</p>
+                    <p class="pi-bio" data-zh="研究方向包括肿瘤（免疫治疗）组学大数据资源整合与数据挖掘，前沿创新的（肿瘤）生物信息学算法与工具研究与应用。发表SCI论文20余篇，谷歌学术引用1800余次。" data-en="Research focuses on cancer (immunotherapy) omics data integration and mining, innovative bioinformatics algorithms and tools development. Published 20+ SCI papers with 1800+ citations.">
+                        研究方向包括肿瘤（免疫治疗）组学大数据资源整合与数据挖掘，前沿创新的（肿瘤）生物信息学算法与工具研究与应用。发表SCI论文20余篇，谷歌学术引用1800余次。
+                    </p>
+                    <div class="pi-links">
+                        <a href="https://faculty.csu.edu.cn/wangshixiang" target="_blank" class="pi-link">
+                            🏛️ <span data-zh="学校官网" data-en="University Profile">学校官网</span>
+                        </a>
+                        <a href="https://scholar.google.com/citations?user=FvNp0NkAAAAJ" target="_blank" class="pi-link">
+                            📚 <span data-zh="谷歌学术" data-en="Google Scholar">谷歌学术</span>
+                        </a>
+                        <a href="https://orcid.org/0000-0001-9855-7357" target="_blank" class="pi-link">
+                            🔬 ORCID
+                        </a>
+                        <a href="https://www.researchgate.net/profile/Wang-Shixiang-3" target="_blank" class="pi-link">
+                            📖 ResearchGate
+                        </a>
+                        <a href="https://github.com/ShixiangWang" target="_blank" class="pi-link">
+                            💻 GitHub
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <div class="terminal">
+            <div class="terminal-header">
+                <span class="terminal-dot red"></span>
+                <span class="terminal-dot yellow"></span>
+                <span class="terminal-dot green"></span>
+            </div>
+            <div class="terminal-body">
+                <div class="terminal-line" data-zh="echo &quot;探索肿瘤基因组学的无限可能&quot;" data-en='echo "Exploring cancer genomics possibilities"'>echo "探索肿瘤基因组学的无限可能"</div>
+                <div style="color: var(--secondary); margin-top: 10px;" data-zh=">>> LISOM · 中南大学生命科学学院" data-en=">>> LISOM · School of Life Sciences, CSU">>>> LISOM · 中南大学生命科学学院</div>
+            </div>
+        </div>
+
+        <footer>
+            <p class="footer-text chinese-text" data-zh="以数据为剑，以算法为侠，守护生命之光" data-en="Guarding the light of life with data and algorithms">
+                以数据为剑，以算法为侠，守护生命之光
+            </p>
+            <div class="footer-links">
+                <a href="https://faculty.csu.edu.cn/wangshixiang" target="_blank" data-zh="学校官网" data-en="University">学校官网</a>
+                <a href="https://github.com/WangLabCSU" target="_blank">GitHub</a>
+                <a href="https://oncoharmony.feishu.cn/" target="_blank">飞书</a>
+                <a href="https://oncoharmony-network.github.io/" target="_blank">OncoHarmony</a>
+            </div>
+            <p class="footer-text" style="margin-top: 15px;">
+                © 2024 WangLab · <span data-zh="中南大学生命科学学院" data-en="School of Life Sciences, CSU">中南大学生命科学学院</span>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('particles-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function createParticle() {
+            return {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2 + 0.5,
+                speedX: (Math.random() - 0.5) * 0.5,
+                speedY: (Math.random() - 0.5) * 0.5,
+                opacity: Math.random() * 0.5 + 0.2,
+                color: Math.random() > 0.5 ? '#00f5d4' : '#7b2cbf'
+            };
+        }
+
+        function initParticles() {
+            particles = [];
+            const numParticles = Math.floor((canvas.width * canvas.height) / 15000);
+            for (let i = 0; i < numParticles; i++) {
+                particles.push(createParticle());
+            }
+        }
+
+        function drawParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            particles.forEach((p, i) => {
+                p.x += p.speedX;
+                p.y += p.speedY;
+
+                if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.opacity;
+                ctx.fill();
+
+                particles.slice(i + 1).forEach(p2 => {
+                    const dx = p.x - p2.x;
+                    const dy = p.y - p2.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 100) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.strokeStyle = p.color;
+                        ctx.globalAlpha = (1 - dist / 100) * 0.2;
+                        ctx.stroke();
+                    }
+                });
+            });
+
+            ctx.globalAlpha = 1;
+            requestAnimationFrame(drawParticles);
+        }
+
+        resizeCanvas();
+        initParticles();
+        drawParticles();
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            initParticles();
+        });
+
+        let currentLang = 'zh';
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            document.querySelectorAll('[data-zh][data-en]').forEach(el => {
+                el.textContent = el.getAttribute(`data-${lang}`);
+            });
+
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+        }
+    </script>
+</body>
+</html>
