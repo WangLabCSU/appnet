@@ -4,7 +4,12 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 获取脚本实际路径（处理符号链接）
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [ -L "$SCRIPT_PATH" ]; then
+    SCRIPT_PATH="$(readlink -f "$SCRIPT_PATH")"
+fi
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="$BASE_DIR/config/apps.yaml"
 APPS_DIR="$BASE_DIR/apps"
