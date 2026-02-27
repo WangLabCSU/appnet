@@ -63,6 +63,17 @@ for app in apps:
         lines.append("")
         continue
     
+    # 处理静态网站类型
+    if app_type == 'static':
+        root_path = app.get('root', f'/home/bio/manage/appnet/apps/{app_name}')
+        lines.append(f"    handle_path /{app_name}/* {{")
+        lines.append(f"        root * {root_path}")
+        lines.append(f"        file_server")
+        lines.append(f"    }}")
+        lines.append(f"    redir /{app_name} /{app_name}/ 308")
+        lines.append("")
+        continue
+    
     # 跳过被注释的应用（enabled: false）
     if app.get('enabled') is False:
         continue

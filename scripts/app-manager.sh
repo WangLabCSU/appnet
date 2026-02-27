@@ -29,8 +29,9 @@ AppNet 应用管理工具
 用法: $0 <command> [options]
 
 命令:
-    add <name> <type> <port>    添加新应用
-                                type: fullstack|monolith|proxy
+    add <name> <type> [port]    添加新应用
+                                type: fullstack|monolith|proxy|static
+                                port: 端口号（static类型不需要）
     remove <name>               删除应用
     list                        列出所有应用
     update                      更新配置并重启Caddy
@@ -75,15 +76,22 @@ add_app() {
     local type=$2
     local port=$3
     
-    if [ -z "$name" ] || [ -z "$type" ] || [ -z "$port" ]; then
+    if [ -z "$name" ] || [ -z "$type" ]; then
         echo -e "${RED}Error: Missing arguments${NC}"
         show_help
         exit 1
     fi
     
+    # static 类型不需要端口
+    if [ "$type" != "static" ] && [ -z "$port" ]; then
+        echo -e "${RED}Error: Port is required for non-static types${NC}"
+        show_help
+        exit 1
+    fi
+    
     # 验证类型
-    if [[ ! "$type" =~ ^(fullstack|monolith|proxy)$ ]]; then
-        echo -e "${RED}Error: Invalid type. Must be: fullstack, monolith, or proxy${NC}"
+    if [[ ! "$type" =~ ^(fullstack|monolith|proxy|static)$ ]]; then
+        echo -e "${RED}Error: Invalid type. Must be: fullstack, monolith, proxy, or static${NC}"
         exit 1
     fi
     
@@ -93,13 +101,33 @@ add_app() {
         exit 1
     fi
     
-    echo -e "${BLUE}Creating app: $name (type: $type, port: $port)${NC}"
+    if [ "$type" = "static" ]; then
+        echo -e "${BLUE}Creating app: $name (type: $type)${NC}"
+    else
+        echo -e "${BLUE}Creating app: $name (type: $type, port: $port)${NC}"
+    fi
     
     # 创建应用目录
     mkdir -p "$APPS_DIR/$name"
     
     # 根据类型创建不同的结构
     case $type in
+        static)
+            cat > "$APPS_DIR/$name/README.md" << EOF
+# $name
+
+Static website application.
+
+## Structure
+Place your static files (HTML, CSS, JS, images) in this directory.
+
+## Access
+- URL: /$name/
+
+## Development
+Just add your static files to this directory.
+EOF
+            ;;
         fullstack)
             mkdir -p "$APPS_DIR/$name/frontend" "$APPS_DIR/$name/backend"
             cat > "$APPS_DIR/$name/README.md" << EOF
@@ -188,6 +216,19 @@ if '$type' == 'fullstack':
                 'target': 'localhost:$((port + 1))',
                 'type': 'frontend',
                 'strip_prefix': True
+            }
+        ]
+    }
+elif '$type' == 'static':
+    new_app = {
+        'name': '$name',
+        'type': '$type',
+        'description': '$name static website',
+        'root': '$APPS_DIR/$name',
+        'routes': [
+            {
+                'path': '/$name',
+                'type': 'full'
             }
         ]
     }

@@ -20,6 +20,7 @@
 #       - custom: 自定义启动脚本
 #       - proxy: 代理外部服务
 #       - redirect: 跳转到外部URL
+#       - static: 静态网站（直接提供静态文件）
 #     enabled: 是否启用（true/false，可选，默认true）
 #     description: 应用描述
 #     start_script: 自定义启动脚本路径（仅custom类型需要）
@@ -53,6 +54,15 @@ landing:
 
 # 应用列表
 apps:
+  # Courses - 静态网站（课程资料）
+  - name: courses
+    type: static
+    description: "Courses - Static Website"
+    root: /home/bio/manage/appnet/apps/courses
+    routes:
+      - path: /courses
+        type: full
+
   # Demo1 - 前后端分离示例（基因表达分析）
   - name: demo1
     type: fullstack
