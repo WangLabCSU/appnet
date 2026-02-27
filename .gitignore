@@ -54,3 +54,5 @@ apps/*/.env
 
 # Keep directory structure
 !logs/.gitkeep
+
+courses/
