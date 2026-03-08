@@ -115,7 +115,25 @@ for app in apps:
             lines.append(f"    handle /{app_name}/* {{")
             lines.append(f"        reverse_proxy {target}")
             lines.append(f"    }}")
+            # 添加不带斜杠的重定向
+            lines.append(f"    redir /{app_name} /{app_name}/ 308")
         lines.append("")
+    
+    # 处理额外路由（如静态资源路径）
+    extra_routes = app.get('extra_routes', [])
+    for extra_route in extra_routes:
+        extra_path = extra_route.get('path', '')
+        extra_target = extra_route.get('target', '')
+        if extra_path and extra_target:
+            if extra_path.endswith('/*'):
+                lines.append(f"    handle {extra_path} {{")
+            elif extra_path.endswith('/'):
+                lines.append(f"    handle {extra_path}* {{")
+            else:
+                lines.append(f"    handle {extra_path} {{")
+            lines.append(f"        reverse_proxy {extra_target}")
+            lines.append(f"    }}")
+            lines.append("")
 
 if landing_enabled:
     lines.append(f"    @landing path /")

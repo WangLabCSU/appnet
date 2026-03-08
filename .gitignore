@@ -51,6 +51,8 @@ apps/*/node_modules/
 apps/*/dist/
 apps/*/build/
 apps/*/.env
+apps/*/.venv/
+**/.venv/
 
 # Keep directory structure
 !logs/.gitkeep
