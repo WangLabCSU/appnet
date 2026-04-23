@@ -110,26 +110,6 @@ apps:
         target: http://biotree.top:38124/
         type: redirect
 
-  # hiclaw - Docker 服务代理 (端口 18088)
-  - name: hiclaw
-    type: proxy
-    description: "hiclaw manager application"
-    routes:
-      - path: /hiclaw
-        target: localhost:18088
-        type: full
-        strip_prefix: true
-
-  # element - Docker 服务代理 (端口 18080)
-  - name: element
-    type: proxy
-    description: "element application"
-    routes:
-      - path: /element
-        target: localhost:18080
-        type: full
-        strip_prefix: true
-
   # 示例：如何禁用应用（保留配置但暂时不用）
   # - name: oldapp
   #   type: monolith

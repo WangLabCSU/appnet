@@ -35,16 +35,6 @@
     redir /shiny http://biotree.top:38124/
     redir /shiny/* http://biotree.top:38124/
 
-    handle_path /hiclaw/* {
-        reverse_proxy localhost:18088
-    }
-    redir /hiclaw /hiclaw/ 308
-
-    handle_path /element/* {
-        reverse_proxy localhost:18080
-    }
-    redir /element /element/ 308
-
     @landing path /
     handle @landing {
         file_server
