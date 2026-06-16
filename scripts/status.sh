@@ -22,13 +22,13 @@ fi
 echo ""
 
 # 检查应用
-python3 << PYTHON_SCRIPT
+CONFIG_FILE="$CONFIG_FILE" BASE_DIR="$BASE_DIR" python3 << 'PYTHON_SCRIPT'
 import yaml
 import os
 import subprocess
 
-config_file = "$CONFIG_FILE"
-base_dir = "$BASE_DIR"
+config_file = os.environ.get('CONFIG_FILE', '')
+base_dir = os.environ.get('BASE_DIR', '')
 
 try:
     with open(config_file, 'r') as f:
@@ -48,13 +48,19 @@ for app in config.get('apps', []):
     # 显示禁用状态
     status_icon = "⏸️" if enabled is False else "📦"
     
-    if app_type == 'proxy' or app_type == 'redirect':
+    if app_type == 'proxy' or app_type == 'redirect' or app_type == 'static':
         print(f"  {status_icon} {name} ({app_type})")
         if enabled is False:
             print(f"      Status: DISABLED")
         for route in app.get('routes', []):
+            path = route.get('path', '')
             target = route.get('target', '')
-            print(f"      → {target}")
+            if app_type == 'redirect':
+                print(f"      → {path} → `{target}`")
+            elif app_type == 'static':
+                print(f"      → {path} (static files)")
+            else:
+                print(f"      → {path} → {target}")
         print("")
         continue
     
@@ -65,30 +71,69 @@ for app in config.get('apps', []):
         print("")
         continue
     
-    # 确定服务名称
+    # 确定服务名称和对应端口
     if app_type == 'fullstack':
+        # 从 routes 中获取 backend 和 frontend 的端口
+        backend_port = None
+        frontend_port = None
+        for route in app.get('routes', []):
+            target = route.get('target', '')
+            route_type = route.get('type', '')
+            if ':' in target and 'localhost' in target:
+                port = target.split(':')[-1]
+                if route_type == 'api':
+                    backend_port = port
+                elif route_type == 'frontend':
+                    frontend_port = port
         services = [
-            (f"{name}-backend", f"{name}-backend"),
-            (f"{name}-frontend", f"{name}-frontend")
+            (f"{name}-backend", f"{name}-backend", backend_port),
+            (f"{name}-frontend", f"{name}-frontend", frontend_port)
         ]
     elif app_type == 'custom':
-        services = [(name, name)]
+        # 从 routes 获取端口
+        port = None
+        for route in app.get('routes', []):
+            target = route.get('target', '')
+            if ':' in target and 'localhost' in target:
+                port = target.split(':')[-1]
+                break
+        services = [(name, name, port)]
     else:
-        services = [(name, name)]
+        # 从 routes 获取端口
+        port = None
+        for route in app.get('routes', []):
+            target = route.get('target', '')
+            if ':' in target and 'localhost' in target:
+                port = target.split(':')[-1]
+                break
+        services = [(name, name, port)]
     
-    for service_name, pid_name in services:
+    for service_name, pid_name, service_port in services:
         pid_file = os.path.join(base_dir, 'logs', f'{pid_name}.pid')
+        is_running = False
+        source = ""
         
         if os.path.exists(pid_file):
             with open(pid_file, 'r') as f:
                 pid = f.read().strip()
             
             try:
-                # 检查进程是否存在
                 os.kill(int(pid), 0)
-                print(f"    ✅ {service_name} (PID: {pid})")
+                is_running = True
+                source = f"PID: {pid}"
             except (OSError, ValueError):
-                print(f"    ❌ {service_name} (PID file exists but process not running)")
+                pass
+        
+        # 如果 PID 文件不存在或进程未运行，检查端口
+        if not is_running and service_port:
+            result = subprocess.run(['lsof', '-i', f':{service_port}'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                is_running = True
+                source = f"port {service_port} (external)"
+        
+        if is_running:
+            print(f"    ✅ {service_name} ({source})")
         else:
             print(f"    ❌ {service_name}")
     
