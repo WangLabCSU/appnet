@@ -35,6 +35,13 @@
     redir /shiny http://biotree.top:38124/
     redir /shiny/* http://biotree.top:38124/
 
+    handle_path /gitea/* {
+        reverse_proxy localhost:3000 {
+            header_up Host biotree.top:38123
+        }
+    }
+    redir /gitea /gitea/ 308
+
     @landing path /
     handle @landing {
         file_server
