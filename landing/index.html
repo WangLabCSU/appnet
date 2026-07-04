@@ -352,6 +352,21 @@
             border-radius: 2px;
         }
 
+        .app-group-title {
+            font-size: 1.1rem;
+            color: var(--secondary);
+            margin: 30px 0 15px 0;
+            padding-left: 10px;
+            border-left: 3px solid var(--secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .app-group-title:first-of-type {
+            margin-top: 0;
+        }
+
         .apps-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -696,6 +711,12 @@
 
         <section class="section">
             <h2 class="section-title chinese-text" data-zh="应用平台" data-en="Applications">应用平台</h2>
+            
+            <!-- API 服务 -->
+            <div class="app-group-title">
+                <span>🔌</span>
+                <span class="chinese-text" data-zh="API 服务" data-en="API Services">API 服务</span>
+            </div>
             <div class="apps-grid">
                 <div class="app-card">
                     <div class="app-icon">🧬</div>
@@ -715,21 +736,28 @@
                 </div>
 
                 <div class="app-card">
-                    <div class="app-icon">📊</div>
-                    <h3 class="app-name">Shiny Server</h3>
-                    <p class="app-desc" data-zh="交互式数据可视化与分析平台，提供丰富的生物信息学分析工具。" data-en="Interactive data visualization and analysis platform.">
-                        交互式数据可视化与分析平台，提供丰富的生物信息学分析工具。
+                    <div class="app-icon">�</div>
+                    <h3 class="app-name">UCSCXena API</h3>
+                    <p class="app-desc" data-zh="UCSC Xena数据分析API服务，支持TCGA癌症数据差异表达分析等。" data-en="API service for UCSC Xena data analysis, supporting TCGA differential expression analysis.">
+                        UCSC Xena数据分析API服务，支持TCGA癌症数据差异表达分析等。
                     </p>
                     <div class="app-tags">
-                        <span class="app-tag">R</span>
-                        <span class="app-tag">Shiny</span>
-                        <span class="app-tag">Visualization</span>
+                        <span class="app-tag">Python</span>
+                        <span class="app-tag">FastAPI</span>
+                        <span class="app-tag">TCGA</span>
                     </div>
-                    <a href="/shiny" class="app-link">
+                    <a href="/ucscxena/" class="app-link">
                         <span data-zh="进入应用" data-en="Launch">进入应用</span> →
                     </a>
                 </div>
+            </div>
 
+            <!-- Shiny 应用 -->
+            <div class="app-group-title">
+                <span>📊</span>
+                <span class="chinese-text" data-zh="Shiny 应用" data-en="Shiny Applications">Shiny 应用</span>
+            </div>
+            <div class="apps-grid">
                 <div class="app-card">
                     <div class="app-icon">🧪</div>
                     <h3 class="app-name">UCSCXenaShiny</h3>
@@ -793,23 +821,14 @@
                         <span data-zh="进入应用" data-en="Launch">进入应用</span> →
                     </a>
                 </div>
+            </div>
 
-                <div class="app-card">
-                    <div class="app-icon">🔬</div>
-                    <h3 class="app-name">UCSCXena API</h3>
-                    <p class="app-desc" data-zh="UCSC Xena数据分析API服务，支持TCGA癌症数据差异表达分析等。" data-en="API service for UCSC Xena data analysis, supporting TCGA differential expression analysis.">
-                        UCSC Xena数据分析API服务，支持TCGA癌症数据差异表达分析等。
-                    </p>
-                    <div class="app-tags">
-                        <span class="app-tag">Python</span>
-                        <span class="app-tag">FastAPI</span>
-                        <span class="app-tag">TCGA</span>
-                    </div>
-                    <a href="/ucscxena/" class="app-link">
-                        <span data-zh="进入应用" data-en="Launch">进入应用</span> →
-                    </a>
-                </div>
-
+            <!-- 外部平台 -->
+            <div class="app-group-title">
+                <span>🌐</span>
+                <span class="chinese-text" data-zh="外部平台" data-en="External Platforms">外部平台</span>
+            </div>
+            <div class="apps-grid">
                 <div class="app-card">
                     <div class="app-icon">📈</div>
                     <h3 class="app-name">Hiplot</h3>
@@ -841,7 +860,14 @@
                         <span data-zh="进入应用" data-en="Launch">进入应用</span> →
                     </a>
                 </div>
+            </div>
 
+            <!-- 演示应用 -->
+            <div class="app-group-title">
+                <span>🧪</span>
+                <span class="chinese-text" data-zh="演示应用" data-en="Demo Applications">演示应用</span>
+            </div>
+            <div class="apps-grid">
                 <div class="app-card">
                     <div class="app-icon">📈</div>
                     <h3 class="app-name">Demo1: Gene Expression</h3>
