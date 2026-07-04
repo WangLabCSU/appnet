@@ -1022,8 +1022,17 @@
             <p class="footer-text" style="margin-top: 15px;">
                 © 2024 WangLab · <span data-zh="中南大学生命科学学院" data-en="School of Life Sciences, CSU">中南大学生命科学学院</span>
             </p>
+            <!-- 访问统计 -->
+            <div class="footer-stats" style="margin-top: 10px; font-size: 0.85rem; opacity: 0.7;">
+                <span data-zh="本页访问" data-en="Page Views">本页访问</span>: <span id="vercount_value_page_pv">Loading</span> · 
+                <span data-zh="总访问量" data-en="Total Visits">总访问量</span>: <span id="vercount_value_site_pv">Loading</span> · 
+                <span data-zh="访客数" data-en="Visitors">访客数</span>: <span id="vercount_value_site_uv">Loading</span>
+            </div>
         </footer>
     </div>
+
+    <!-- Vercount 访问统计 -->
+    <script defer src="https://events.vercount.one/js"></script>
 
     <script>
         const canvas = document.getElementById('particles-canvas');
