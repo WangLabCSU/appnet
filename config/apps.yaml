@@ -120,6 +120,19 @@ apps:
         type: full
         strip_prefix: true
 
+  # UCSCXenaToolsPy - TCGA Analysis API
+  - name: ucscxena
+    type: custom
+    description: "UCSCXenaToolsPy - TCGA Analysis API"
+    start_script: start_api.sh
+    env:
+      API_PORT: 28885
+    routes:
+      - path: /ucscxena
+        target: localhost:28885
+        type: full
+        strip_prefix: true
+
   # 示例：如何禁用应用（保留配置但暂时不用）
   # - name: oldapp
   #   type: monolith

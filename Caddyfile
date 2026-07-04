@@ -36,11 +36,14 @@
     redir /shiny/* http://biotree.top:38124/
 
     handle_path /gitea/* {
-        reverse_proxy localhost:3000 {
-            header_up Host biotree.top:38123
-        }
+        reverse_proxy localhost:3000
     }
     redir /gitea /gitea/ 308
+
+    handle_path /ucscxena/* {
+        reverse_proxy localhost:28885
+    }
+    redir /ucscxena /ucscxena/ 308
 
     @landing path /
     handle @landing {

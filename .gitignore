@@ -54,6 +54,10 @@ apps/*/.env
 apps/*/.venv/
 **/.venv/
 
+# UCSCXenaToolsPy
+apps/ucscxena/src/
+apps/ucscxena/venv/
+
 # Keep directory structure
 !logs/.gitkeep
 

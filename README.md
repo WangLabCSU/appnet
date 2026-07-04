@@ -48,25 +48,46 @@ sudo apt install -y caddy
 pip3 install pyyaml
 ```
 
-### 2. 启动服务
+### 2. 安装全局命令 (可选)
+
+将 `appnet` 安装为全局命令，方便在任何目录使用：
 
 ```bash
+# 创建软链接到 ~/.local/bin
+mkdir -p ~/.local/bin
+ln -sf /home/bio/manage/appnet/scripts/app-manager.sh ~/.local/bin/appnet
+
+# 确保 ~/.local/bin 在 PATH 中
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc  # 或 ~/.bashrc
+source ~/.zshrc  # 或 source ~/.bashrc
+
+# 现在可以在任何目录使用 appnet 命令
+appnet status
+appnet start
+appnet stop otk
+```
+
+**注意**: 软链接指向项目目录中的脚本，修改 `scripts/app-manager.sh` 会自动生效。
+
+### 3. 启动服务
+
+```bash
+# 使用全局命令
+appnet start           # 启动所有应用和Caddy
+appnet start otk       # 启动单个应用
+
+# 或使用项目脚本
 cd /home/bio/manage/appnet
-
-# 启动所有服务和Caddy
 ./scripts/app-manager.sh start
-
-# 或启动单个应用
-./scripts/app-manager.sh start otk
 ```
 
-### 3. 查看状态
+### 4. 查看状态
 
 ```bash
-./scripts/app-manager.sh status
+appnet status
 ```
 
-### 4. 停止服务
+### 5. 停止服务
 
 ```bash
 # 停止所有服务和Caddy
