@@ -127,6 +127,10 @@ apps:
     start_script: start_api.sh
     env:
       API_PORT: 28885
+    auto_update:
+      enabled: true
+      interval: hourly  # hourly, daily, weekly
+      source: git       # git, pip, none
     routes:
       - path: /ucscxena
         target: localhost:28885

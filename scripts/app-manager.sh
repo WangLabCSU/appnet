@@ -35,6 +35,8 @@ AppNet 应用管理工具
     remove <name>               删除应用
     list                        列出所有应用
     update                      更新配置并重启Caddy
+    update-app [<name>]         更新应用代码（git pull + 重装）
+                                不指定名称则更新所有 auto_update 应用
     ports                       显示端口使用情况
     start [<name>]              启动应用（不指定名称则启动所有）
     stop [<name>]               停止应用（不指定名称则停止所有）
@@ -47,7 +49,9 @@ AppNet 应用管理工具
     $0 remove myapp
     $0 list
     $0 update
-    $0 start            # 启动所有应用和Caddy
+    $0 update-app              # 更新所有 auto_update 应用
+    $0 update-app ucscxena      # 更新指定应用
+    $0 start                   # 启动所有应用和Caddy
     $0 start otk        # 只启动otk
     $0 stop             # 停止所有服务和Caddy
     $0 stop otk         # 只停止otk
@@ -930,6 +934,83 @@ reload_caddy() {
     fi
 }
 
+# 更新单个应用的代码
+update_single_app() {
+    local app_name="$1"
+    
+    if [ -z "$app_name" ]; then
+        echo -e "${RED}错误: 请指定应用名称${NC}"
+        return 1
+    fi
+    
+    # 检查应用是否存在
+    local app_config=$(grep -A 20 "name: $app_name" "$CONFIG_FILE" | head -20)
+    if [ -z "$app_config" ]; then
+        echo -e "${RED}错误: 应用 '$app_name' 不存在${NC}"
+        return 1
+    fi
+    
+    local app_dir="$APPS_DIR/$app_name"
+    if [ ! -d "$app_dir" ]; then
+        echo -e "${RED}错误: 应用目录不存在: $app_dir${NC}"
+        return 1
+    fi
+    
+    echo -e "${BLUE}正在更新应用: $app_name${NC}"
+    
+    # 检查是否有 git 源码
+    local src_dir="$app_dir/src"
+    if [ -d "$src_dir/.git" ]; then
+        echo "  → 检查 Git 更新..."
+        cd "$src_dir"
+        local current_commit=$(git rev-parse HEAD)
+        git fetch origin 2>/dev/null || true
+        local latest_commit=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+        
+        if [ "$current_commit" = "$latest_commit" ]; then
+            echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
+            return 0
+        fi
+        
+        echo "  → 拉取最新代码..."
+        git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
+    fi
+    
+    # 检查是否有 venv 并重装
+    if [ -d "$app_dir/venv" ]; then
+        echo "  → 重新安装依赖..."
+        source "$app_dir/venv/bin/activate"
+        if [ -d "$src_dir" ]; then
+            pip install -e ".[api]" --quiet 2>/dev/null || pip install -e . --quiet 2>/dev/null || true
+        fi
+    fi
+    
+    # 重启应用
+    echo "  → 重启应用..."
+    restart_app "$app_name"
+    
+    echo -e "${GREEN}✓ 应用 '$app_name' 更新完成${NC}"
+}
+
+# 更新所有 auto_update 应用
+update_all_apps() {
+    echo -e "${BLUE}检查所有 auto_update 应用...${NC}"
+    
+    # 从 apps.yaml 中找出所有 auto_update.enabled: true 的应用
+    local apps=$(grep -B 5 "auto_update:" "$CONFIG_FILE" | grep "name:" | awk '{print $2}')
+    
+    if [ -z "$apps" ]; then
+        echo "  无需自动更新的应用"
+        return 0
+    fi
+    
+    for app_name in $apps; do
+        update_single_app "$app_name"
+    done
+    
+    echo -e "${GREEN}✓ 所有应用更新完成${NC}"
+}
+
 # 主函数
 main() {
     check_deps
@@ -946,6 +1027,13 @@ main() {
             ;;
         update)
             update_config
+            ;;
+        update-app)
+            if [ -z "$2" ]; then
+                update_all_apps
+            else
+                update_single_app "$2"
+            fi
             ;;
         ports)
             show_ports
