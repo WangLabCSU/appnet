@@ -9,8 +9,11 @@
 - **Landing Page** - 炫酷的团队展示页面，支持中英文切换
 - **前后端分离支持** - 内置跨域解决方案
 - **动态配置生成** - 自动根据配置生成Caddyfile
-- **统一的命令行工具** - 所有运维操作通过 `app-manager.sh` 完成
+- **统一的命令行工具** - 所有运维操作通过 `appnet` 命令完成
+- **自动更新支持** - 支持应用代码自动更新（git pull + pip install）
+- **Docker容器检测** - 支持检测 Docker 容器运行状态
 - **Git版本控制** - 配置变更可追溯
+- **GitHub代理支持** - 内置国内镜像代理加速 git 操作
 
 ## 📁 目录结构
 
@@ -103,32 +106,38 @@ appnet status
 
 ```bash
 # 查看帮助
-./scripts/app-manager.sh
+appnet
 
 # 启动服务
-./scripts/app-manager.sh start           # 启动所有应用和Caddy
-./scripts/app-manager.sh start otk       # 启动单个应用
+appnet start           # 启动所有应用和Caddy
+appnet start otk       # 启动单个应用
 
 # 停止服务
-./scripts/app-manager.sh stop            # 停止所有服务和Caddy
-./scripts/app-manager.sh stop otk        # 停止单个应用
+appnet stop            # 停止所有服务和Caddy
+appnet stop otk        # 停止单个应用
 
 # 重启应用
-./scripts/app-manager.sh restart otk     # 重启单个应用
+appnet restart otk     # 重启单个应用
 
 # 查看状态
-./scripts/app-manager.sh status          # 查看所有服务状态
+appnet status          # 查看所有服务状态
 
 # 配置管理
-./scripts/app-manager.sh list            # 列出所有应用
-./scripts/app-manager.sh ports           # 显示端口使用情况
-./scripts/app-manager.sh update          # 更新配置并重启Caddy
-./scripts/app-manager.sh reload          # 重载Caddy配置
+appnet list            # 列出所有应用
+appnet ports           # 显示端口使用情况
+appnet update          # 更新配置并重启Caddy
+appnet reload          # 重载Caddy配置
+
+# 应用代码更新
+appnet update-app              # 更新所有 auto_update 应用
+appnet update-app otk          # 更新单个应用
+appnet update-app --force      # 强制更新所有（跳过间隔检查）
+appnet update-app otk --force  # 强制更新单个
 
 # 应用管理
-./scripts/app-manager.sh add myapp monolith 3000    # 添加单体应用
-./scripts/app-manager.sh add myapp fullstack 3000  # 添加前后端分离应用
-./scripts/app-manager.sh remove myapp               # 删除应用
+appnet add myapp monolith 3000    # 添加单体应用
+appnet add myapp fullstack 3000  # 添加前后端分离应用
+appnet remove myapp               # 删除应用
 ```
 
 ## ⚙️ 配置文件
@@ -136,6 +145,11 @@ appnet status
 应用配置位于 `config/apps.yaml`：
 
 ```yaml
+# 全局配置
+global:
+  github_proxy: "https://gh-proxy.org/"  # GitHub 国内镜像代理
+  pip_mirror: "https://pypi.tuna.tsinghua.edu.cn/simple"
+
 # Caddy 全局配置
 caddy:
   http_port: 8880
@@ -149,6 +163,17 @@ landing:
 
 # 应用列表
 apps:
+  # Docker 容器应用
+  - name: gitea
+    type: proxy
+    description: "Gitea Git Server"
+    container: gitea  # Docker 容器名称（用于状态检测）
+    routes:
+      - path: /gitea
+        target: localhost:3000
+        type: full
+        strip_prefix: true
+
   # 前后端分离应用
   - name: demo1
     type: fullstack
@@ -173,7 +198,7 @@ apps:
         type: full
         strip_prefix: true
 
-  # 自定义启动脚本应用
+  # 自定义启动脚本 + 自动更新
   - name: otk
     type: custom
     description: "OTK Prediction API"
@@ -181,6 +206,12 @@ apps:
     env:
       API_PORT: 28884
       OTK_BASE_PATH: /otk
+    auto_update:
+      enabled: true
+      interval: daily       # hourly, daily, weekly, 或 30min
+      method: git_pull_install
+      git_dir: ""           # git 在 app 根目录
+      venv_dir: otk_api/venv  # venv 在子目录
     routes:
       - path: /otk
         target: localhost:28884
@@ -200,7 +231,9 @@ apps:
 | 应用 | 访问地址 | 说明 |
 |-----|---------|------|
 | Landing Page | http://server:8880/ | WangLab团队展示页面 |
+| Gitea | http://server:8880/gitea/ | Git服务器 |
 | OTK API | http://server:8880/otk/ | ecDNA预测分析平台 |
+| UCSCXena API | http://server:8880/ucscxena/ | TCGA数据分析API |
 | Demo1 | http://server:8880/demo1/ | 前后端分离应用 |
 | Demo2 | http://server:8880/demo2/ | 单体应用 |
 | Shiny | http://server:8880/shiny | R Shiny应用(跳转) |
@@ -236,10 +269,12 @@ Demo1展示了前后端分离的跨域解决方案：
 | 服务 | 端口 | 说明 |
 |-----|------|------|
 | Caddy | 8880 | 统一入口 |
+| Gitea | 3000 | Git服务器 (Docker) |
 | Demo1 Backend | 28881 | API服务 |
 | Demo1 Frontend | 28883 | 前端服务 |
 | Demo2 | 28882 | 完整应用 |
 | OTK API | 28884 | Python/FastAPI |
+| UCSCXena API | 28885 | Python/FastAPI |
 
 ## 🛠️ 开发指南
 
@@ -269,6 +304,49 @@ Demo1展示了前后端分离的跨域解决方案：
   routes:
     - path: /oldapp
       target: localhost:28000
+```
+
+### 自动更新配置
+
+支持应用代码自动更新：
+
+```yaml
+auto_update:
+  enabled: true
+  interval: daily        # hourly, daily, weekly, 或 30min
+  method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade
+  git_dir: ""            # git 仓库路径（空 = app 根目录）
+  venv_dir: venv         # 虚拟环境路径
+```
+
+**更新方法说明**：
+
+| 方法 | 说明 |
+|-----|------|
+| `git_pull` | 仅 git pull，不安装依赖 |
+| `git_pull_install` | git pull + pip install -e（推荐） |
+| `pip_git` | pip install git+xxx |
+| `pip_upgrade` | pip install -U package_name |
+
+**安装 systemd 定时器**：
+
+```bash
+sudo ./scripts/install-systemd-timer.sh
+```
+
+定时器每小时运行 `appnet update-app`，每个应用根据配置的 `interval` 判断是否需要更新。
+
+### Docker 容器应用
+
+对于 Docker 容器应用，添加 `container` 字段用于状态检测：
+
+```yaml
+- name: gitea
+  type: proxy
+  container: gitea  # Docker 容器名称
+  routes:
+    - path: /gitea
+      target: localhost:3000
 ```
 
 ## 📝 日志
