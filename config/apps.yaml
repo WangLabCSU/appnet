@@ -119,10 +119,11 @@ apps:
         target: http://biotree.top:38124/
         type: redirect
 
-  # Gitea - Git服务
+  # Gitea - Git Server (Docker)
   - name: gitea
     type: proxy
-    description: "Gitea - Git Service"
+    description: "Gitea Git Server"
+    container: gitea  # Docker 容器名称
     routes:
       - path: /gitea
         target: localhost:3000

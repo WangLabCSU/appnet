@@ -909,14 +909,26 @@ for app in config.get('apps', []):
     enabled = app.get('enabled', True)
     if enabled is False:
         continue
+    
+    name = app.get('name')
+    container = app.get('container')
+    
     for route in app.get('routes', []):
         target = route.get('target', '')
         if ':' in target and 'localhost' in target:
             port = target.split(':')[-1]
-            name = app.get('name')
-            result = subprocess.run(['lsof', '-i', f':{port}'], capture_output=True, text=True)
-            status = "🟢" if result.returncode == 0 else "🔴"
-            print(f"  {name}:     {port} {status}")
+            
+            # Docker 容器检测
+            if container:
+                result = subprocess.run(['docker', 'ps', '--filter', f'name={container}', '--format', '{{.Names}}'], 
+                                      capture_output=True, text=True)
+                status = "🟢" if container in result.stdout else "🔴"
+                print(f"  {name}:     {port} {status} (docker: {container})")
+            else:
+                # 本地端口检测
+                result = subprocess.run(['lsof', '-i', f':{port}'], capture_output=True, text=True)
+                status = "🟢" if result.returncode == 0 else "🔴"
+                print(f"  {name}:     {port} {status}")
 PYTHON_SCRIPT
 }
 
