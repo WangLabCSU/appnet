@@ -37,6 +37,7 @@ AppNet 应用管理工具
     update                      更新配置并重启Caddy
     update-app [<name>]         更新应用代码（git pull + 重装）
                                 不指定名称则更新所有 auto_update 应用
+                                加 --force 跳过 interval 检查
     ports                       显示端口使用情况
     start [<name>]              启动应用（不指定名称则启动所有）
     stop [<name>]               停止应用（不指定名称则停止所有）
@@ -949,6 +950,7 @@ reload_caddy() {
 # 更新单个应用的代码
 update_single_app() {
     local app_name="$1"
+    local force="$2"  # 是否强制更新（跳过 interval 检查）
     
     if [ -z "$app_name" ]; then
         echo -e "${RED}错误: 请指定应用名称${NC}"
@@ -976,9 +978,36 @@ update_single_app() {
     local method=$(echo "$app_config" | grep "method:" | awk '{print $2}' | tr -d '"' || echo "git_pull_install")
     local reinstall_deps=$(echo "$app_config" | grep "reinstall_deps:" | awk '{print $2}' || echo "true")
     local pip_git_url=$(echo "$app_config" | grep "pip_git_url:" | awk '{print $2}' | tr -d '"')
+    local interval=$(echo "$app_config" | grep "interval:" | awk '{print $2}' || echo "hourly")
+    
+    # 检查是否需要更新（根据 interval）
+    local state_file="$app_dir/.update_state"
+    if [ "$force" != "force" ] && [ -f "$state_file" ]; then
+        local last_update=$(cat "$state_file")
+        local now=$(date +%s)
+        local diff=$((now - last_update))
+        
+        local interval_secs=3600  # 默认 hourly = 1小时
+        case "$interval" in
+            hourly)   interval_secs=3600 ;;
+            daily)    interval_secs=86400 ;;
+            weekly)   interval_secs=604800 ;;
+            *:*)      # 支持自定义分钟数，如 "30min"
+                local mins=$(echo "$interval" | sed 's/min$//')
+                interval_secs=$((mins * 60))
+                ;;
+        esac
+        
+        if [ $diff -lt $interval_secs ]; then
+            local remaining=$((interval_secs - diff))
+            local remaining_mins=$((remaining / 60))
+            echo -e "${YELLOW}  跳过 '$app_name' (${remaining_mins}分钟后更新)${NC}"
+            return 0
+        fi
+    fi
     
     echo -e "${BLUE}正在更新应用: $app_name${NC}"
-    echo "  方法: $method"
+    echo "  方法: $method, 频率: $interval"
     
     local src_dir="$app_dir/src"
     local needs_restart=false
@@ -993,7 +1022,6 @@ update_single_app() {
                 
                 # 使用代理加速 fetch
                 if [ -n "$github_proxy" ]; then
-                    # 临时替换 remote URL
                     local original_url=$(git remote get-url origin)
                     local proxy_url="${github_proxy}${original_url}"
                     git fetch "$proxy_url" 2>/dev/null || git fetch origin 2>/dev/null
@@ -1085,6 +1113,9 @@ update_single_app() {
             ;;
     esac
     
+    # 更新状态文件
+    date +%s > "$state_file"
+    
     # 重启应用（如有更新）
     if [ "$needs_restart" = "true" ]; then
         echo "  → 重启应用..."
@@ -1095,6 +1126,7 @@ update_single_app() {
 
 # 更新所有 auto_update 应用
 update_all_apps() {
+    local force="$1"
     echo -e "${BLUE}检查所有 auto_update 应用...${NC}"
     
     # 从 apps.yaml 中找出所有 auto_update.enabled: true 的应用
@@ -1114,10 +1146,10 @@ update_all_apps() {
     fi
     
     for app_name in $apps; do
-        update_single_app "$app_name"
+        update_single_app "$app_name" "$force"
     done
     
-    echo -e "${GREEN}✓ 所有应用更新完成${NC}"
+    echo -e "${GREEN}✓ 所有应用检查完成${NC}"
 }
 
 # 主函数
@@ -1140,6 +1172,10 @@ main() {
         update-app)
             if [ -z "$2" ]; then
                 update_all_apps
+            elif [ "$2" = "--force" ]; then
+                update_all_apps "force"
+            elif [ "$3" = "--force" ]; then
+                update_single_app "$2" "force"
             else
                 update_single_app "$2"
             fi
