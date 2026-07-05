@@ -944,7 +944,7 @@ update_single_app() {
     fi
     
     # 检查应用是否存在
-    local app_config=$(grep -A 20 "name: $app_name" "$CONFIG_FILE" | head -20)
+    local app_config=$(grep -A 30 "name: $app_name" "$CONFIG_FILE" | head -30)
     if [ -z "$app_config" ]; then
         echo -e "${RED}错误: 应用 '$app_name' 不存在${NC}"
         return 1
@@ -956,40 +956,129 @@ update_single_app() {
         return 1
     fi
     
+    # 获取全局配置
+    local github_proxy=$(grep "github_proxy:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
+    local pip_mirror=$(grep "pip_mirror:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
+    
+    # 获取更新配置
+    local method=$(echo "$app_config" | grep "method:" | awk '{print $2}' | tr -d '"' || echo "git_pull_install")
+    local reinstall_deps=$(echo "$app_config" | grep "reinstall_deps:" | awk '{print $2}' || echo "true")
+    local pip_git_url=$(echo "$app_config" | grep "pip_git_url:" | awk '{print $2}' | tr -d '"')
+    
     echo -e "${BLUE}正在更新应用: $app_name${NC}"
+    echo "  方法: $method"
     
-    # 检查是否有 git 源码
     local src_dir="$app_dir/src"
-    if [ -d "$src_dir/.git" ]; then
-        echo "  → 检查 Git 更新..."
-        cd "$src_dir"
-        local current_commit=$(git rev-parse HEAD)
-        git fetch origin 2>/dev/null || true
-        local latest_commit=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
-        
-        if [ "$current_commit" = "$latest_commit" ]; then
-            echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
-            return 0
-        fi
-        
-        echo "  → 拉取最新代码..."
-        git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
+    local needs_restart=false
+    
+    case "$method" in
+        git_pull)
+            # 仅 git pull，不安装
+            if [ -d "$src_dir/.git" ]; then
+                echo "  → 检查 Git 更新..."
+                cd "$src_dir"
+                local current_commit=$(git rev-parse HEAD)
+                
+                # 使用代理加速 fetch
+                if [ -n "$github_proxy" ]; then
+                    # 临时替换 remote URL
+                    local original_url=$(git remote get-url origin)
+                    local proxy_url="${github_proxy}${original_url}"
+                    git fetch "$proxy_url" 2>/dev/null || git fetch origin 2>/dev/null
+                else
+                    git fetch origin 2>/dev/null
+                fi
+                
+                local latest_commit=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+                
+                if [ "$current_commit" != "$latest_commit" ]; then
+                    echo "  → 拉取最新代码..."
+                    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
+                    needs_restart=true
+                else
+                    echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
+                fi
+            fi
+            ;;
+            
+        git_pull_install)
+            # git pull + pip install -e
+            if [ -d "$src_dir/.git" ]; then
+                echo "  → 检查 Git 更新..."
+                cd "$src_dir"
+                local current_commit=$(git rev-parse HEAD)
+                git fetch origin 2>/dev/null || true
+                local latest_commit=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+                
+                if [ "$current_commit" != "$latest_commit" ]; then
+                    echo "  → 拉取最新代码..."
+                    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
+                    
+                    if [ "$reinstall_deps" = "true" ] && [ -d "$app_dir/venv" ]; then
+                        echo "  → 重新安装依赖..."
+                        source "$app_dir/venv/bin/activate"
+                        if [ -n "$pip_mirror" ]; then
+                            pip install -e ".[api]" -i "$pip_mirror" --quiet 2>/dev/null || \
+                            pip install -e . -i "$pip_mirror" --quiet 2>/dev/null || true
+                        else
+                            pip install -e ".[api]" --quiet 2>/dev/null || \
+                            pip install -e . --quiet 2>/dev/null || true
+                        fi
+                    fi
+                    needs_restart=true
+                else
+                    echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
+                fi
+            fi
+            ;;
+            
+        pip_git)
+            # pip install git+xxx
+            if [ -n "$pip_git_url" ] && [ -d "$app_dir/venv" ]; then
+                echo "  → 从 Git URL 安装..."
+                source "$app_dir/venv/bin/activate"
+                
+                # 应用 GitHub 代理
+                local install_url="$pip_git_url"
+                if [ -n "$github_proxy" ] && [[ "$pip_git_url" == *"github.com"* ]]; then
+                    install_url="${pip_git_url/github.com/${github_proxy}github.com}"
+                fi
+                
+                if [ -n "$pip_mirror" ]; then
+                    pip install -U "$install_url" -i "$pip_mirror" --quiet 2>/dev/null || true
+                else
+                    pip install -U "$install_url" --quiet 2>/dev/null || true
+                fi
+                needs_restart=true
+            fi
+            ;;
+            
+        pip_upgrade)
+            # pip install -U package_name
+            if [ -d "$app_dir/venv" ]; then
+                local package_name=$(basename "$src_dir" 2>/dev/null || echo "$app_name")
+                echo "  → 升级包: $package_name"
+                source "$app_dir/venv/bin/activate"
+                if [ -n "$pip_mirror" ]; then
+                    pip install -U "$package_name" -i "$pip_mirror" --quiet 2>/dev/null || true
+                else
+                    pip install -U "$package_name" --quiet 2>/dev/null || true
+                fi
+                needs_restart=true
+            fi
+            ;;
+            
+        *)
+            echo -e "${YELLOW}  未知更新方法: $method${NC}"
+            ;;
+    esac
+    
+    # 重启应用（如有更新）
+    if [ "$needs_restart" = "true" ]; then
+        echo "  → 重启应用..."
+        restart_app "$app_name"
+        echo -e "${GREEN}✓ 应用 '$app_name' 更新完成${NC}"
     fi
-    
-    # 检查是否有 venv 并重装
-    if [ -d "$app_dir/venv" ]; then
-        echo "  → 重新安装依赖..."
-        source "$app_dir/venv/bin/activate"
-        if [ -d "$src_dir" ]; then
-            pip install -e ".[api]" --quiet 2>/dev/null || pip install -e . --quiet 2>/dev/null || true
-        fi
-    fi
-    
-    # 重启应用
-    echo "  → 重启应用..."
-    restart_app "$app_name"
-    
-    echo -e "${GREEN}✓ 应用 '$app_name' 更新完成${NC}"
 }
 
 # 更新所有 auto_update 应用

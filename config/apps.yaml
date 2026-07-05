@@ -2,6 +2,15 @@
 # 用于定义所有反向代理的应用
 
 # ============================================
+# 全局配置
+# ============================================
+global:
+  # GitHub 国内镜像代理（加速 git clone/pull）
+  github_proxy: "https://gh-proxy.org/"  # 可选: gh-proxy.org, gitclone.com, hub.fastgit.xyz
+  # pip 国内镜像
+  pip_mirror: "https://pypi.tuna.tsinghua.edu.cn/simple"
+
+# ============================================
 # 配置参数说明
 # ============================================
 #
@@ -130,7 +139,9 @@ apps:
     auto_update:
       enabled: true
       interval: hourly  # hourly, daily, weekly
-      source: git       # git, pip, none
+      method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade
+      # pip_git_url: "git+https://github.com/lishensuo/UCSCXenaToolsPy.git"
+      reinstall_deps: true  # 是否重新安装依赖
     routes:
       - path: /ucscxena
         target: localhost:28885
