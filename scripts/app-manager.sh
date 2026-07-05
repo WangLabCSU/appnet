@@ -997,7 +997,15 @@ update_all_apps() {
     echo -e "${BLUE}检查所有 auto_update 应用...${NC}"
     
     # 从 apps.yaml 中找出所有 auto_update.enabled: true 的应用
-    local apps=$(grep -B 5 "auto_update:" "$CONFIG_FILE" | grep "name:" | awk '{print $2}')
+    # 使用 awk 来正确解析 YAML 结构
+    local apps=$(awk '
+        /^  - name:/ { current_name=$3 }
+        /auto_update:/ { has_auto_update=1 }
+        /enabled: true/ && has_auto_update { 
+            print current_name
+            has_auto_update=0
+        }
+    ' "$CONFIG_FILE")
     
     if [ -z "$apps" ]; then
         echo "  无需自动更新的应用"
