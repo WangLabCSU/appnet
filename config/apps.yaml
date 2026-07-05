@@ -104,6 +104,12 @@ apps:
     env:
       API_PORT: 28884
       OTK_BASE_PATH: /otk
+    auto_update:
+      enabled: true
+      interval: daily
+      method: git_pull_install
+      git_dir: ""  # git 在 app 根目录（空字符串）
+      venv_dir: otk_api/venv  # venv 在子目录
     routes:
       - path: /otk
         target: localhost:28884

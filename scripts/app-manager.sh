@@ -979,6 +979,17 @@ update_single_app() {
     local reinstall_deps=$(echo "$app_config" | grep "reinstall_deps:" | awk '{print $2}' || echo "true")
     local pip_git_url=$(echo "$app_config" | grep "pip_git_url:" | awk '{print $2}' | tr -d '"')
     local interval=$(echo "$app_config" | grep "interval:" | awk '{print $2}' || echo "hourly")
+    local git_dir=$(echo "$app_config" | grep "git_dir:" | awk '{print $2}' | tr -d '"' || echo "src")
+    local venv_dir=$(echo "$app_config" | grep "venv_dir:" | awk '{print $2}' | tr -d '"' || echo "venv")
+    
+    # 解析目录路径
+    # git_dir: "src" 或 "" (空表示 app 根目录)
+    # venv_dir: "venv" 或 "otk_api/venv"
+    local git_path="$app_dir"
+    if [ -n "$git_dir" ] && [ "$git_dir" != "" ]; then
+        git_path="$app_dir/$git_dir"
+    fi
+    local venv_path="$app_dir/$venv_dir"
     
     # 检查是否需要更新（根据 interval）
     local state_file="$app_dir/.update_state"
@@ -1009,15 +1020,14 @@ update_single_app() {
     echo -e "${BLUE}正在更新应用: $app_name${NC}"
     echo "  方法: $method, 频率: $interval"
     
-    local src_dir="$app_dir/src"
     local needs_restart=false
     
     case "$method" in
         git_pull)
             # 仅 git pull，不安装
-            if [ -d "$src_dir/.git" ]; then
+            if [ -d "$git_path/.git" ]; then
                 echo "  → 检查 Git 更新..."
-                cd "$src_dir"
+                cd "$git_path"
                 local current_commit=$(git rev-parse HEAD)
                 
                 # 使用代理加速 fetch
@@ -1043,9 +1053,9 @@ update_single_app() {
             
         git_pull_install)
             # git pull + pip install -e
-            if [ -d "$src_dir/.git" ]; then
+            if [ -d "$git_path/.git" ]; then
                 echo "  → 检查 Git 更新..."
-                cd "$src_dir"
+                cd "$git_path"
                 local current_commit=$(git rev-parse HEAD)
                 git fetch origin 2>/dev/null || true
                 local latest_commit=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
@@ -1054,9 +1064,9 @@ update_single_app() {
                     echo "  → 拉取最新代码..."
                     git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
                     
-                    if [ "$reinstall_deps" = "true" ] && [ -d "$app_dir/venv" ]; then
+                    if [ "$reinstall_deps" = "true" ] && [ -d "$venv_path" ]; then
                         echo "  → 重新安装依赖..."
-                        source "$app_dir/venv/bin/activate"
+                        source "$venv_path/bin/activate"
                         if [ -n "$pip_mirror" ]; then
                             pip install -e ".[api]" -i "$pip_mirror" --quiet 2>/dev/null || \
                             pip install -e . -i "$pip_mirror" --quiet 2>/dev/null || true
@@ -1074,9 +1084,9 @@ update_single_app() {
             
         pip_git)
             # pip install git+xxx
-            if [ -n "$pip_git_url" ] && [ -d "$app_dir/venv" ]; then
+            if [ -n "$pip_git_url" ] && [ -d "$venv_path" ]; then
                 echo "  → 从 Git URL 安装..."
-                source "$app_dir/venv/bin/activate"
+                source "$venv_path/bin/activate"
                 
                 # 应用 GitHub 代理
                 local install_url="$pip_git_url"
@@ -1095,10 +1105,10 @@ update_single_app() {
             
         pip_upgrade)
             # pip install -U package_name
-            if [ -d "$app_dir/venv" ]; then
-                local package_name=$(basename "$src_dir" 2>/dev/null || echo "$app_name")
+            if [ -d "$venv_path" ]; then
+                local package_name=$(basename "$git_path" 2>/dev/null || echo "$app_name")
                 echo "  → 升级包: $package_name"
-                source "$app_dir/venv/bin/activate"
+                source "$venv_path/bin/activate"
                 if [ -n "$pip_mirror" ]; then
                     pip install -U "$package_name" -i "$pip_mirror" --quiet 2>/dev/null || true
                 else
