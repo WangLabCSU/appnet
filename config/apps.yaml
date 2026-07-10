@@ -164,3 +164,33 @@ apps:
   #     - path: /oldapp
   #       target: localhost:28000
   #       type: full
+
+  # RStudio Server - 反向代理到本地 RStudio
+  - name: rstudio
+    type: proxy
+    description: "RStudio Server IDE"
+    routes:
+      - path: /rstudio
+        target: localhost:8787
+        type: full
+        strip_prefix: true
+
+  # Shiny Server - 反向代理到本地 Shiny Server（直接访问）
+  - name: shinyapps
+    type: proxy
+    description: "Shiny Server (direct proxy)"
+    routes:
+      - path: /shinyapps
+        target: localhost:3838
+        type: full
+        strip_prefix: true
+
+  # 示例：如何禁用应用（保留配置但暂时不用）
+  # - name: oldapp
+  #   type: monolith
+  #   enabled: false
+  #   description: "Disabled application example"
+  #   routes:
+  #     - path: /oldapp
+  #       target: localhost:28000
+  #       type: full

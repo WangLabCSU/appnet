@@ -104,6 +104,13 @@ for app in apps:
                 lines.append(f"            header_up X-Forwarded-Prefix /{app_name}")
                 lines.append(f"        }}")
                 lines.append(f"    }}")
+            elif app_name == 'rstudio':
+                # RStudio 特殊处理：告知 RStudio 其子路径
+                lines.append(f"    handle_path /{app_name}/* {{")
+                lines.append(f"        reverse_proxy {target} {{")
+                lines.append(f"            header_up X-RStudio-Root-Path /{app_name}")
+                lines.append(f"        }}")
+                lines.append(f"    }}")
             else:
                 lines.append(f"    handle_path /{app_name}/* {{")
                 lines.append(f"        reverse_proxy {target}")

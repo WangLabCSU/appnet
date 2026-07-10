@@ -44,6 +44,7 @@ AppNet 应用管理工具
     restart <name>              重启单个应用
     status                      查看服务状态
     reload                      重载Caddy配置
+    warmup-shiny                预热所有 Shiny 应用（保持 R 进程存活）
     
 示例:
     $0 add myapp monolith 3000
@@ -933,6 +934,17 @@ for app in config.get('apps', []):
 PYTHON_SCRIPT
 }
 
+# 预热所有 Shiny 应用
+warmup_shiny() {
+    local warmup_script="$SCRIPT_DIR/shiny-warmup.sh"
+    if [ -f "$warmup_script" ]; then
+        bash "$warmup_script"
+    else
+        echo -e "${RED}Error: Warmup script not found: $warmup_script${NC}"
+        exit 1
+    fi
+}
+
 # 重载Caddy配置
 reload_caddy() {
     echo -e "${BLUE}Reloading Caddy configuration...${NC}"
@@ -1215,6 +1227,9 @@ main() {
             ;;
         reload)
             reload_caddy
+            ;;
+        warmup-shiny)
+            warmup_shiny
             ;;
         *)
             show_help

@@ -45,6 +45,18 @@
     }
     redir /ucscxena /ucscxena/ 308
 
+    handle_path /rstudio/* {
+        reverse_proxy localhost:8787 {
+            header_up X-RStudio-Root-Path /rstudio
+        }
+    }
+    redir /rstudio /rstudio/ 308
+
+    handle_path /shinyapps/* {
+        reverse_proxy localhost:3838
+    }
+    redir /shinyapps /shinyapps/ 308
+
     @landing path /
     handle @landing {
         file_server
