@@ -12,9 +12,9 @@ global:
 # Caddy 全局配置
 caddy:
   http_port: 80
-  https_port: 443
-  auto_https: true
-  domain: zhoulab.ac.cn
+  admin_port: 2019
+  auto_https: false
+  # HTTPS: set auto_https: true, add domain: zhoulab.ac.cn when DNS points to this server
 
 # Landing Page - 跳转到 OncoHarmony 联合团队页面
 landing:
