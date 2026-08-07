@@ -45,6 +45,9 @@ if auto_https and domain:
     lines.append(f"    https_port {https_port}")
 if not auto_https:
     lines.append(f"    auto_https off")
+elif auto_https and domain:
+    # Disable HTTP→HTTPS redirects until DNS resolves; remove once certs obtained
+    lines.append(f"    auto_https disable_redirects")
 lines.append("}")
 lines.append("")
 

@@ -1,6 +1,7 @@
 {
     http_port 80
     https_port 443
+    auto_https disable_redirects
 }
 
 zhoulab.ac.cn {
