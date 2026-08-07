@@ -34,6 +34,7 @@ auto_https = caddy_config.get('auto_https', False)
 landing = config.get('landing', {})
 landing_enabled = landing.get('enabled', False)
 landing_path = landing.get('path', '/home/bio/manage/appnet/landing')
+landing_redirect = landing.get('redirect', '')
 
 lines = []
 lines.append("{")
@@ -43,7 +44,12 @@ lines.append("}")
 lines.append("")
 lines.append(f":{http_port} {{")
 
-if landing_enabled:
+# Landing page redirect takes priority over static file serving
+if landing_enabled and landing_redirect:
+    lines.append(f"    # Root redirect to external landing page")
+    lines.append(f"    redir / {landing_redirect} 302")
+    lines.append("")
+elif landing_enabled:
     lines.append(f"    root * {landing_path}")
     lines.append("")
 
@@ -142,7 +148,7 @@ for app in apps:
             lines.append(f"    }}")
             lines.append("")
 
-if landing_enabled:
+if landing_enabled and not landing_redirect:
     lines.append(f"    @landing path /")
     lines.append(f"    handle @landing {{")
     lines.append(f"        file_server")

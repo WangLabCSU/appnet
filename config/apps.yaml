@@ -17,7 +17,8 @@ caddy:
 
 # Landing Page - 跳转到 OncoHarmony 联合团队页面
 landing:
-  enabled: false
+  enabled: true
+  redirect: https://oncoharmony-network.github.io/
 
 # 应用列表
 apps:
