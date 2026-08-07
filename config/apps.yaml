@@ -46,9 +46,10 @@ apps:
         type: full
         strip_prefix: true
 
-  # UCSCXenaToolsPy - TCGA Analysis API
+  # UCSCXenaToolsPy - TCGA Analysis API (needs venv + ucscxenatoolspy package)
   - name: ucscxena
     type: custom
+    enabled: false
     description: "UCSCXenaToolsPy - TCGA Analysis API"
     start_script: start_api.sh
     env:

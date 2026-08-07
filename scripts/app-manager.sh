@@ -680,18 +680,18 @@ for app in apps:
             script_path = os.path.join(app_dir, start_script)
             if os.path.exists(script_path):
                 os.chdir(app_dir)
-                
+
                 env = os.environ.copy()
                 app_env = app.get('env', {})
                 for key, value in app_env.items():
                     env[key] = str(value)
-                
+
                 log_file = os.path.join(base_dir, 'logs', f'{name}.log')
                 pid_file = os.path.join(base_dir, 'logs', f'{name}.pid')
-                
+
                 with open(log_file, 'w') as log:
-                    proc = subprocess.Popen(['bash', script_path], 
-                                           stdout=log, 
+                    proc = subprocess.Popen(['bash', script_path],
+                                           stdout=log,
                                            stderr=subprocess.STDOUT,
                                            start_new_session=True,
                                            env=env)
@@ -699,6 +699,65 @@ for app in apps:
                         pf.write(str(proc.pid))
                     print(f"🚀 Started {name} with PID {proc.pid}")
                 os.chdir(base_dir)
+
+    elif app_type == 'monolith':
+        if os.path.exists(os.path.join(app_dir, 'package.json')):
+            os.chdir(app_dir)
+            if not os.path.exists('node_modules'):
+                subprocess.run(['npm', 'install'], capture_output=True)
+
+            log_file = os.path.join(base_dir, 'logs', f'{name}.log')
+            pid_file = os.path.join(base_dir, 'logs', f'{name}.pid')
+
+            with open(log_file, 'w') as log:
+                proc = subprocess.Popen(['npm', 'start'],
+                                       stdout=log,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
+                with open(pid_file, 'w') as pf:
+                    pf.write(str(proc.pid))
+                print(f"🚀 Started {name} with PID {proc.pid}")
+            os.chdir(base_dir)
+
+    elif app_type == 'fullstack':
+        backend_dir = os.path.join(app_dir, 'backend')
+        frontend_dir = os.path.join(app_dir, 'frontend')
+
+        if os.path.exists(os.path.join(backend_dir, 'package.json')):
+            os.chdir(backend_dir)
+            if not os.path.exists('node_modules'):
+                subprocess.run(['npm', 'install'], capture_output=True)
+
+            log_file = os.path.join(base_dir, 'logs', f'{name}-backend.log')
+            pid_file = os.path.join(base_dir, 'logs', f'{name}-backend.pid')
+
+            with open(log_file, 'w') as log:
+                proc = subprocess.Popen(['npm', 'start'],
+                                       stdout=log,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
+                with open(pid_file, 'w') as pf:
+                    pf.write(str(proc.pid))
+                print(f"🚀 Started {name}-backend with PID {proc.pid}")
+            os.chdir(base_dir)
+
+        if os.path.exists(os.path.join(frontend_dir, 'package.json')):
+            os.chdir(frontend_dir)
+            if not os.path.exists('node_modules'):
+                subprocess.run(['npm', 'install'], capture_output=True)
+
+            log_file = os.path.join(base_dir, 'logs', f'{name}-frontend.log')
+            pid_file = os.path.join(base_dir, 'logs', f'{name}-frontend.pid')
+
+            with open(log_file, 'w') as log:
+                proc = subprocess.Popen(['npm', 'start'],
+                                       stdout=log,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
+                with open(pid_file, 'w') as pf:
+                    pf.write(str(proc.pid))
+                print(f"🚀 Started {name}-frontend with PID {proc.pid}")
+            os.chdir(base_dir)
 
 print("\n✅ All enabled applications started!")
 PYTHON_SCRIPT

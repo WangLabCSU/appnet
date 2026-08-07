@@ -22,11 +22,6 @@
     }
     redir /demo2 /demo2/ 308
 
-    handle_path /ucscxena/* {
-        reverse_proxy localhost:28885
-    }
-    redir /ucscxena /ucscxena/ 308
-
     redir /shiny https://shiny.zhoulab.ac.cn/
     redir /shiny/* https://shiny.zhoulab.ac.cn/
 
