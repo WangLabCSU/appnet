@@ -43,7 +43,8 @@ lines.append("{")
 if auto_https and domain:
     lines.append(f"    http_port {http_port}")
     lines.append(f"    https_port {https_port}")
-lines.append(f"    auto_https {'on' if auto_https else 'off'}")
+if not auto_https:
+    lines.append(f"    auto_https off")
 lines.append("}")
 lines.append("")
 

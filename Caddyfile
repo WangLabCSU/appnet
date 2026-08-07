@@ -1,7 +1,6 @@
 {
     http_port 80
     https_port 443
-    auto_https on
 }
 
 zhoulab.ac.cn {
