@@ -12,8 +12,9 @@ global:
 # Caddy 全局配置
 caddy:
   http_port: 80
-  admin_port: 2019
-  auto_https: false
+  https_port: 443
+  auto_https: true
+  domain: zhoulab.ac.cn
 
 # Landing Page - 跳转到 OncoHarmony 联合团队页面
 landing:
@@ -46,10 +47,9 @@ apps:
         type: full
         strip_prefix: true
 
-  # UCSCXenaToolsPy - TCGA Analysis API (needs venv + ucscxenatoolspy package)
+  # UCSCXenaToolsPy - TCGA Analysis API (Python/FastAPI)
   - name: ucscxena
     type: custom
-    enabled: false
     description: "UCSCXenaToolsPy - TCGA Analysis API"
     start_script: start_api.sh
     env:
@@ -58,6 +58,8 @@ apps:
       enabled: true
       interval: hourly
       method: git_pull_install
+      git_dir: ""
+      venv_dir: venv
       reinstall_deps: true
     routes:
       - path: /ucscxena

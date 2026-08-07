@@ -30,7 +30,9 @@ except Exception as e:
 
 caddy_config = config.get('caddy', {})
 http_port = caddy_config.get('http_port', 8880)
+https_port = caddy_config.get('https_port', 443)
 auto_https = caddy_config.get('auto_https', False)
+domain = caddy_config.get('domain', '')
 landing = config.get('landing', {})
 landing_enabled = landing.get('enabled', False)
 landing_path = landing.get('path', '/home/bio/manage/appnet/landing')
@@ -38,11 +40,19 @@ landing_redirect = landing.get('redirect', '')
 
 lines = []
 lines.append("{")
-lines.append(f"    http_port {http_port}")
+if auto_https and domain:
+    lines.append(f"    http_port {http_port}")
+    lines.append(f"    https_port {https_port}")
 lines.append(f"    auto_https {'on' if auto_https else 'off'}")
 lines.append("}")
 lines.append("")
-lines.append(f":{http_port} {{")
+
+# Use domain name if configured, otherwise use port-only binding
+if domain:
+    server_addr = domain
+else:
+    server_addr = f":{http_port}"
+lines.append(f"{server_addr} {{")
 
 # Landing page redirect takes priority over static file serving
 if landing_enabled and landing_redirect:

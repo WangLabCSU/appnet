@@ -1,9 +1,10 @@
 {
     http_port 80
-    auto_https off
+    https_port 443
+    auto_https on
 }
 
-:80 {
+zhoulab.ac.cn {
     # Root redirect to external landing page
     redir / https://oncoharmony-network.github.io/ 302
 
@@ -21,6 +22,11 @@
         reverse_proxy localhost:28882
     }
     redir /demo2 /demo2/ 308
+
+    handle_path /ucscxena/* {
+        reverse_proxy localhost:28885
+    }
+    redir /ucscxena /ucscxena/ 308
 
     redir /shiny https://shiny.zhoulab.ac.cn/
     redir /shiny/* https://shiny.zhoulab.ac.cn/
