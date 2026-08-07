@@ -2,7 +2,7 @@
     auto_https off
 }
 
-:80 {
+:80, :443 {
     # Root redirect to external landing page
     redir / https://oncoharmony-network.github.io/ 302
 
