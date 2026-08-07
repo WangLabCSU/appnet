@@ -31,7 +31,7 @@
     redir /shiny/* https://shiny.zhoulab.ac.cn/
 
     handle_path /shinyapps/* {
-        reverse_proxy localhost:3838
+        reverse_proxy localhost:3939
     }
     redir /shinyapps /shinyapps/ 308
 

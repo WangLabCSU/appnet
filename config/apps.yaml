@@ -78,6 +78,6 @@ apps:
     description: "Shiny Portal (Docker Shiny Server)"
     routes:
       - path: /shinyapps
-        target: localhost:3838
+        target: localhost:3939
         type: full
         strip_prefix: true
