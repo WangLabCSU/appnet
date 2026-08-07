@@ -64,3 +64,16 @@ apps/ucscxena/venv/
 
 courses/
 apps/otk/
+
+# ucscxena cloned repo (runtime)
+apps/ucscxena/src/
+apps/ucscxena/venv/
+apps/ucscxena/.gitignore
+apps/ucscxena/.readthedocs.yaml
+apps/ucscxena/COMPARISON.md
+apps/ucscxena/LICENSE
+apps/ucscxena/README.md
+apps/ucscxena/docs/
+apps/ucscxena/pyproject.toml
+apps/ucscxena/skills/
+apps/ucscxena/tests/
