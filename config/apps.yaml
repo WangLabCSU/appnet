@@ -12,9 +12,11 @@ global:
 # Caddy 全局配置
 caddy:
   http_port: 80
+  https_port: 443
   admin_port: 2019
   auto_https: false
-  # HTTPS: set auto_https: true, add domain: zhoulab.ac.cn when DNS points to this server
+  tls_cert: /home/deploy/gitea-docker/gitea/cert_zhou.txt
+  tls_key: /home/deploy/gitea-docker/gitea/key_zhou.txt
 
 # Landing Page - 跳转到 OncoHarmony 联合团队页面
 landing:
