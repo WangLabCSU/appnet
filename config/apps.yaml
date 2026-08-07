@@ -1,77 +1,26 @@
-# AppNet 应用配置文件
+# AppNet 应用配置文件 - OncoHarmony (European Server)
 # 用于定义所有反向代理的应用
 
 # ============================================
 # 全局配置
 # ============================================
 global:
-  # GitHub 国内镜像代理（加速 git clone/pull）
-  github_proxy: "https://gh-proxy.org/"  # 可选: gh-proxy.org, gitclone.com, hub.fastgit.xyz
-  # pip 国内镜像
-  pip_mirror: "https://pypi.tuna.tsinghua.edu.cn/simple"
-
-# ============================================
-# 配置参数说明
-# ============================================
-#
-# caddy: Caddy服务器全局配置
-#   http_port: Caddy监听端口（默认8880）
-#   admin_port: Caddy管理API端口（默认2019，仅本机访问）
-#   auto_https: 是否自动启用HTTPS（true/false）
-#
-# default_redirect: 根路径默认跳转地址
-#
-# apps: 应用列表
-#   - name: 应用名称（唯一标识）
-#     type: 应用类型
-#       - fullstack: 前后端分离（自动创建backend/frontend）
-#       - monolith: 单体应用（Node.js/npm）
-#       - custom: 自定义启动脚本
-#       - proxy: 代理外部服务
-#       - redirect: 跳转到外部URL
-#       - static: 静态网站（直接提供静态文件）
-#     enabled: 是否启用（true/false，可选，默认true）
-#     description: 应用描述
-#     start_script: 自定义启动脚本路径（仅custom类型需要）
-#     env: 环境变量（可选）
-#       VAR_NAME: value
-#     routes: 路由配置列表
-#       - path: URL路径
-#         target: 目标地址（localhost:端口 或 外部URL）
-#         type: 路由类型
-#           - api: API接口（路径会被精确匹配）
-#           - frontend: 前端应用
-#           - full: 完整应用
-#         strip_prefix: 是否剥离路径前缀（true/false）
-#
-# 端口分配建议：
-#   - 后端服务：使用 28xxx 端口
-#   - 前端服务：使用 28xxx+2 端口（前后端分离时）
-#   - 单体应用：使用 28xxx 端口
-# ============================================
+  # 欧洲服务器不需要国内镜像
+  github_proxy: ""
+  pip_mirror: ""
 
 # Caddy 全局配置
 caddy:
-  http_port: 8880
+  http_port: 80
   admin_port: 2019
   auto_https: false
 
-# Landing Page 配置
+# Landing Page - 跳转到 OncoHarmony 联合团队页面
 landing:
-  enabled: true
-  path: /home/bio/manage/appnet/landing
+  enabled: false
 
 # 应用列表
 apps:
-  # Courses - 静态网站（课程资料）
-  - name: courses
-    type: static
-    description: "Courses - Static Website"
-    root: /home/bio/manage/appnet/apps/courses
-    routes:
-      - path: /courses
-        type: full
-
   # Demo1 - 前后端分离示例（基因表达分析）
   - name: demo1
     type: fullstack
@@ -96,46 +45,6 @@ apps:
         type: full
         strip_prefix: true
 
-  # OTK API - 自定义启动脚本的Python应用
-  - name: otk
-    type: custom
-    description: "OTK Prediction API (Python/FastAPI)"
-    start_script: otk_api/start_api.sh
-    env:
-      API_PORT: 28884
-      OTK_BASE_PATH: /otk
-    auto_update:
-      enabled: true
-      interval: daily
-      method: git_pull_install
-      git_dir: ""  # git 在 app 根目录（空字符串）
-      venv_dir: otk_api/venv  # venv 在子目录
-    routes:
-      - path: /otk
-        target: localhost:28884
-        type: full
-        strip_prefix: false
-
-  # Shiny Server - 跳转到外部地址
-  - name: shiny
-    type: redirect
-    description: "Shiny Server"
-    routes:
-      - path: /shiny
-        target: http://biotree.top:38124/
-        type: redirect
-
-  # Gitea - Git Server (Docker)
-  - name: gitea
-    type: proxy
-    description: "Gitea Git Server"
-    container: gitea  # Docker 容器名称
-    routes:
-      - path: /gitea
-        target: localhost:3000
-        type: full
-        strip_prefix: true
-
   # UCSCXenaToolsPy - TCGA Analysis API
   - name: ucscxena
     type: custom
@@ -145,52 +54,30 @@ apps:
       API_PORT: 28885
     auto_update:
       enabled: true
-      interval: hourly  # hourly, daily, weekly
-      method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade
-      # pip_git_url: "git+https://github.com/lishensuo/UCSCXenaToolsPy.git"
-      reinstall_deps: true  # 是否重新安装依赖
+      interval: hourly
+      method: git_pull_install
+      reinstall_deps: true
     routes:
       - path: /ucscxena
         target: localhost:28885
         type: full
         strip_prefix: true
 
-  # 示例：如何禁用应用（保留配置但暂时不用）
-  # - name: oldapp
-  #   type: monolith
-  #   enabled: false
-  #   description: "Disabled application example"
-  #   routes:
-  #     - path: /oldapp
-  #       target: localhost:28000
-  #       type: full
-
-  # RStudio Server - 反向代理到本地 RStudio
-  - name: rstudio
-    type: proxy
-    description: "RStudio Server IDE"
+  # Shiny Server - 跳转到外部 Shiny Server
+  - name: shiny
+    type: redirect
+    description: "Shiny Server (ZhouLab)"
     routes:
-      - path: /rstudio
-        target: localhost:8787
-        type: full
-        strip_prefix: true
+      - path: /shiny
+        target: https://shiny.zhoulab.ac.cn/
+        type: redirect
 
-  # Shiny Server - 反向代理到本地 Shiny Server（直接访问）
+  # Shiny Portal - Docker Shiny Server 代理
   - name: shinyapps
     type: proxy
-    description: "Shiny Server (direct proxy)"
+    description: "Shiny Portal (Docker Shiny Server)"
     routes:
       - path: /shinyapps
         target: localhost:3838
         type: full
         strip_prefix: true
-
-  # 示例：如何禁用应用（保留配置但暂时不用）
-  # - name: oldapp
-  #   type: monolith
-  #   enabled: false
-  #   description: "Disabled application example"
-  #   routes:
-  #     - path: /oldapp
-  #       target: localhost:28000
-  #       type: full

@@ -1,16 +1,11 @@
 {
-    http_port 8880
+    http_port 80
     auto_https off
 }
 
-:8880 {
-    root * /home/bio/manage/appnet/landing
-
-    handle_path /courses/* {
-        root * /home/bio/manage/appnet/apps/courses
-        file_server
-    }
-    redir /courses /courses/ 308
+:80 {
+    # 根路径跳转到 OncoHarmony 联合团队页面
+    redir / https://oncoharmony-network.github.io/ 302
 
     handle /demo1/api/* {
         uri strip_prefix /demo1/api
@@ -27,48 +22,18 @@
     }
     redir /demo2 /demo2/ 308
 
-    handle /otk/* {
-        reverse_proxy localhost:28884
-    }
-    redir /otk /otk/ 308
-
-    redir /shiny http://biotree.top:38124/
-    redir /shiny/* http://biotree.top:38124/
-
-    handle_path /gitea/* {
-        reverse_proxy localhost:3000
-    }
-    redir /gitea /gitea/ 308
-
     handle_path /ucscxena/* {
         reverse_proxy localhost:28885
     }
     redir /ucscxena /ucscxena/ 308
 
-    handle_path /rstudio/* {
-        reverse_proxy localhost:8787 {
-            header_up X-RStudio-Root-Path /rstudio
-        }
-    }
-    redir /rstudio /rstudio/ 308
+    redir /shiny https://shiny.zhoulab.ac.cn/
+    redir /shiny/* https://shiny.zhoulab.ac.cn/
 
     handle_path /shinyapps/* {
         reverse_proxy localhost:3838
     }
     redir /shinyapps /shinyapps/ 308
-
-    @landing path /
-    handle @landing {
-        file_server
-    }
-
-    @static {
-        path *.jpeg *.jpg *.png *.gif *.svg *.css *.js *.ico
-        file
-    }
-    handle @static {
-        file_server
-    }
 
     log {
         output file logs/access.log
