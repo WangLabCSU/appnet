@@ -57,6 +57,11 @@
     }
     redir /shinyapps /shinyapps/ 308
 
+    handle_path /csuapi/* {
+        reverse_proxy https://api.chat.csu.edu.cn
+    }
+    redir /csuapi /csuapi/ 308
+
     @landing path /
     handle @landing {
         file_server
