@@ -14,7 +14,12 @@ echo ""
 echo "🌐 Caddy Proxy:"
 if pgrep -x "caddy" > /dev/null; then
     pid=$(pgrep -x "caddy")
-    echo "  ✅ Running (PID: $pid)"
+    http_port=$(python3 -c "import yaml;print(yaml.safe_load(open('$CONFIG_FILE')).get('caddy',{}).get('http_port',8880))" 2>/dev/null || echo 8880)
+    if [ -n "$(ss -ltnH "sport = :$http_port" 2>/dev/null)" ]; then
+        echo "  ✅ Running (PID: $pid, listening :$http_port)"
+    else
+        echo "  ⚠️  Running (PID: $pid) but NOT listening on :$http_port — wrong config?"
+    fi
 else
     echo "  ❌ Not running"
 fi
@@ -126,11 +131,11 @@ for app in config.get('apps', []):
         
         # 如果 PID 文件不存在或进程未运行，检查端口
         if not is_running and service_port:
-            result = subprocess.run(['lsof', '-i', f':{service_port}'], 
+            result = subprocess.run(['ss', '-ltnH', f'sport = :{service_port}'],
                                   capture_output=True, text=True)
-            if result.returncode == 0:
+            if result.stdout.strip():
                 is_running = True
-                source = f"port {service_port} (external)"
+                source = f"port {service_port} (listening)"
         
         if is_running:
             print(f"    ✅ {service_name} ({source})")
@@ -161,9 +166,9 @@ for app in config.get('apps', []):
             port = target.split(':')[-1]
             name = app.get('name')
             # 检查端口是否被监听
-            result = subprocess.run(['lsof', '-i', f':{port}'], 
+            result = subprocess.run(['ss', '-ltnH', f'sport = :{port}'],
                                   capture_output=True, text=True)
-            status = "🟢" if result.returncode == 0 else "🔴"
+            status = "🟢" if result.stdout.strip() else "🔴"
             print(f"  {name}:     {port} {status}")
 PYTHON_SCRIPT
 

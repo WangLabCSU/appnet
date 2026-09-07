@@ -582,14 +582,21 @@ for app in config.get('apps', []):
                 print(target.split(':')[-1])
 " 2>/dev/null)
     
-    # 停止应用进程（通过PID文件）
+    # 停止应用进程（通过PID文件，杀整个进程组以清理子进程）
     stopped=0
     for pid_file in "$BASE_DIR/logs/${name}"*.pid; do
         if [ -f "$pid_file" ]; then
             pid=$(cat "$pid_file" 2>/dev/null)
             if [ -n "$pid" ]; then
-                if kill "$pid" 2>/dev/null; then
-                    echo "✅ Stopped process $pid (from PID file)"
+                if kill -0 "$pid" 2>/dev/null; then
+                    # start_new_session=True 让 pid 成为 PGID leader，
+                    # kill -- -PGID 杀掉整个进程组（含子进程如 uvicorn/npm）
+                    pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+                    if [ -n "$pgid" ] && kill -- -"$pgid" 2>/dev/null; then
+                        echo "✅ Stopped process group $pgid (from PID file $pid)"
+                    else
+                        kill "$pid" 2>/dev/null && echo "✅ Stopped process $pid (single)"
+                    fi
                     stopped=1
                 else
                     echo "⚠️  Process $pid not running"
@@ -598,11 +605,11 @@ for app in config.get('apps', []):
             rm -f "$pid_file"
         fi
     done
-    
-    # 通过端口停止进程
+
+    # 通过端口停止残留进程（用 ss 替代 lsof，非 root 也能可靠拿到 pid）
     for port in $ports; do
         if [ -n "$port" ]; then
-            pids=$(lsof -ti:$port 2>/dev/null)
+            pids=$(ss -ltnpH "sport = :$port" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
             if [ -n "$pids" ]; then
                 for pid in $pids; do
                     if kill "$pid" 2>/dev/null; then
@@ -674,24 +681,73 @@ for app in apps:
         print(f"⚠️  App directory not found: {app_dir}")
         continue
     
-    if app_type == 'custom':
+    if app_type == 'fullstack':
+        backend_dir = os.path.join(app_dir, 'backend')
+        frontend_dir = os.path.join(app_dir, 'frontend')
+        if os.path.exists(os.path.join(backend_dir, 'package.json')):
+            os.chdir(backend_dir)
+            if not os.path.exists('node_modules'):
+                subprocess.run(['npm', 'install'], capture_output=True)
+            log_file = os.path.join(base_dir, 'logs', f'{name}-backend.log')
+            pid_file = os.path.join(base_dir, 'logs', f'{name}-backend.pid')
+            with open(log_file, 'w') as log:
+                proc = subprocess.Popen(['npm', 'start'],
+                                       stdout=log,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
+                with open(pid_file, 'w') as pf:
+                    pf.write(str(proc.pid))
+                print(f"🚀 Started {name}-backend with PID {proc.pid}")
+            os.chdir(base_dir)
+        if os.path.exists(os.path.join(frontend_dir, 'package.json')):
+            os.chdir(frontend_dir)
+            if not os.path.exists('node_modules'):
+                subprocess.run(['npm', 'install'], capture_output=True)
+            log_file = os.path.join(base_dir, 'logs', f'{name}-frontend.log')
+            pid_file = os.path.join(base_dir, 'logs', f'{name}-frontend.pid')
+            with open(log_file, 'w') as log:
+                proc = subprocess.Popen(['npm', 'start'],
+                                       stdout=log,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
+                with open(pid_file, 'w') as pf:
+                    pf.write(str(proc.pid))
+                print(f"🚀 Started {name}-frontend with PID {proc.pid}")
+            os.chdir(base_dir)
+    elif app_type == 'monolith':
+        if os.path.exists(os.path.join(app_dir, 'package.json')):
+            os.chdir(app_dir)
+            if not os.path.exists('node_modules'):
+                subprocess.run(['npm', 'install'], capture_output=True)
+            log_file = os.path.join(base_dir, 'logs', f'{name}.log')
+            pid_file = os.path.join(base_dir, 'logs', f'{name}.pid')
+            with open(log_file, 'w') as log:
+                proc = subprocess.Popen(['npm', 'start'],
+                                       stdout=log,
+                                       stderr=subprocess.STDOUT,
+                                       start_new_session=True)
+                with open(pid_file, 'w') as pf:
+                    pf.write(str(proc.pid))
+                print(f"🚀 Started {name} with PID {proc.pid}")
+            os.chdir(base_dir)
+    elif app_type == 'custom':
         start_script = app.get('start_script')
         if start_script:
             script_path = os.path.join(app_dir, start_script)
             if os.path.exists(script_path):
                 os.chdir(app_dir)
-                
+
                 env = os.environ.copy()
                 app_env = app.get('env', {})
                 for key, value in app_env.items():
                     env[key] = str(value)
-                
+
                 log_file = os.path.join(base_dir, 'logs', f'{name}.log')
                 pid_file = os.path.join(base_dir, 'logs', f'{name}.pid')
-                
+
                 with open(log_file, 'w') as log:
-                    proc = subprocess.Popen(['bash', script_path], 
-                                           stdout=log, 
+                    proc = subprocess.Popen(['bash', script_path],
+                                           stdout=log,
                                            stderr=subprocess.STDOUT,
                                            start_new_session=True,
                                            env=env)
@@ -703,18 +759,20 @@ for app in apps:
 print("\n✅ All enabled applications started!")
 PYTHON_SCRIPT
 
-    # 生成并启动Caddy
-    echo ""
-    echo -e "${BLUE}=== Starting Caddy ===${NC}"
-    "$SCRIPT_DIR/generate-caddyfile.sh" > /dev/null 2>&1
-    
-    if pgrep -x "caddy" > /dev/null; then
-        echo "🔄 Caddy is already running, reloading..."
-        caddy reload --config "$BASE_DIR/Caddyfile"
-    else
-        caddy start --config "$BASE_DIR/Caddyfile"
+    # 生成并启动Caddy（设置 APPNET_SKIP_CADDY=1 时跳过，交给 systemd caddy.service）
+    if [ -z "$APPNET_SKIP_CADDY" ]; then
+        echo ""
+        echo -e "${BLUE}=== Starting Caddy ===${NC}"
+        "$SCRIPT_DIR/generate-caddyfile.sh" > /dev/null 2>&1
+
+        if pgrep -x "caddy" > /dev/null; then
+            echo "🔄 Caddy is already running, reloading..."
+            caddy reload --config "$BASE_DIR/Caddyfile"
+        else
+            caddy start --config "$BASE_DIR/Caddyfile"
+        fi
     fi
-    
+
     echo ""
     echo -e "${GREEN}=== AppNet Services Started ===${NC}"
 }
@@ -724,13 +782,15 @@ stop_all() {
     echo -e "${YELLOW}=== Stopping AppNet Services ===${NC}"
     echo ""
     
-    # 停止Caddy
-    echo "Stopping Caddy..."
-    if pgrep -x "caddy" > /dev/null; then
-        caddy stop 2>/dev/null || true
-        echo "  ✅ Caddy stopped"
-    else
-        echo "  ⚠️  Caddy was not running"
+    # 停止Caddy（设置 APPNET_SKIP_CADDY=1 时跳过，交给 systemd caddy.service）
+    if [ -z "$APPNET_SKIP_CADDY" ]; then
+        echo "Stopping Caddy..."
+        if pgrep -x "caddy" > /dev/null; then
+            caddy stop 2>/dev/null || true
+            echo "  ✅ Caddy stopped"
+        else
+            echo "  ⚠️  Caddy was not running"
+        fi
     fi
     
     # 停止所有应用
@@ -741,18 +801,33 @@ stop_all() {
         if [ -f "$pid_file" ]; then
             service_name=$(basename "$pid_file" .pid)
             pid=$(cat "$pid_file" 2>/dev/null)
-            
+
             if [ -n "$pid" ]; then
                 if kill -0 "$pid" 2>/dev/null; then
-                    kill "$pid" 2>/dev/null
-                    for i in {1..5}; do
-                        if ! kill -0 "$pid" 2>/dev/null; then
-                            break
+                    # 杀整个进程组以清理子进程（uvicorn/npm 等）
+                    pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+                    if [ -n "$pgid" ]; then
+                        kill -- -"$pgid" 2>/dev/null
+                        for i in {1..5}; do
+                            if ! kill -0 "$pid" 2>/dev/null; then
+                                break
+                            fi
+                            sleep 1
+                        done
+                        if kill -0 "$pid" 2>/dev/null; then
+                            kill -9 -- -"$pgid" 2>/dev/null || true
                         fi
-                        sleep 1
-                    done
-                    if kill -0 "$pid" 2>/dev/null; then
-                        kill -9 "$pid" 2>/dev/null || true
+                    else
+                        kill "$pid" 2>/dev/null
+                        for i in {1..5}; do
+                            if ! kill -0 "$pid" 2>/dev/null; then
+                                break
+                            fi
+                            sleep 1
+                        done
+                        if kill -0 "$pid" 2>/dev/null; then
+                            kill -9 "$pid" 2>/dev/null || true
+                        fi
                     fi
                     echo "  ✅ $service_name stopped (PID: $pid)"
                 else
@@ -762,7 +837,30 @@ stop_all() {
             rm -f "$pid_file"
         fi
     done
-    
+
+    # 端口兜底：清理 pid 文件丢失但进程仍存的孤儿（用 ss 替代 lsof）
+    all_ports=$(python3 -c "
+import yaml
+config = yaml.safe_load(open('$CONFIG_FILE'))
+for app in config.get('apps', []):
+    if app.get('enabled', True) is False:
+        continue
+    if app.get('type') in ('proxy', 'redirect', 'static'):
+        continue
+    for r in app.get('routes', []):
+        t = r.get('target', '')
+        if ':' in t and 'localhost' in t:
+            print(t.split(':')[-1])
+" 2>/dev/null)
+    for port in $all_ports; do
+        pids=$(ss -ltnpH "sport = :$port" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
+        for pid in $pids; do
+            if kill "$pid" 2>/dev/null; then
+                echo "  ✅ Stopped orphan process $pid (on port $port)"
+            fi
+        done
+    done
+
     echo ""
     echo -e "${GREEN}=== All Services Stopped ===${NC}"
 }
@@ -776,7 +874,12 @@ show_status() {
     echo "🌐 Caddy Proxy:"
     if pgrep -x "caddy" > /dev/null; then
         pid=$(pgrep -x "caddy")
-        echo "  ✅ Running (PID: $pid)"
+        http_port=$(python3 -c "import yaml;print(yaml.safe_load(open('$CONFIG_FILE')).get('caddy',{}).get('http_port',8880))" 2>/dev/null || echo 8880)
+        if [ -n "$(ss -ltnH "sport = :$http_port" 2>/dev/null)" ]; then
+            echo "  ✅ Running (PID: $pid, listening :$http_port)"
+        else
+            echo "  ⚠️  Running (PID: $pid) but NOT listening on :$http_port — wrong config?"
+        fi
     else
         echo "  ❌ Not running"
     fi
@@ -884,11 +987,11 @@ for app in config.get('apps', []):
         
         # 如果 PID 文件不存在或进程未运行，检查端口
         if not is_running and service_port:
-            result = subprocess.run(['lsof', '-i', f':{service_port}'], 
+            result = subprocess.run(['ss', '-ltnH', f'sport = :{service_port}'],
                                   capture_output=True, text=True)
-            if result.returncode == 0:
+            if result.stdout.strip():
                 is_running = True
-                source = f"port {service_port} (external)"
+                source = f"port {service_port} (listening)"
         
         if is_running:
             print(f"    ✅ {service_name} ({source})")
@@ -928,8 +1031,8 @@ for app in config.get('apps', []):
                 print(f"  {name}:     {port} {status} (docker: {container})")
             else:
                 # 本地端口检测
-                result = subprocess.run(['lsof', '-i', f':{port}'], capture_output=True, text=True)
-                status = "🟢" if result.returncode == 0 else "🔴"
+                result = subprocess.run(['ss', '-ltnH', f'sport = :{port}'], capture_output=True, text=True)
+                status = "🟢" if result.stdout.strip() else "🔴"
                 print(f"  {name}:     {port} {status}")
 PYTHON_SCRIPT
 }

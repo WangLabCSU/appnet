@@ -29,7 +29,9 @@ appnet/
 │   ├── index.html        # 团队展示页面
 │   └── wsx.jpeg          # PI照片
 ├── scripts/              # 管理脚本
-│   └── app-manager.sh    # 统一管理工具
+│   ├── app-manager.sh     # 统一管理工具
+│   ├── check-apps.sh      # 应用健康检查（供 systemd unit 用）
+│   └── appnet-apps.service # systemd unit 模板（开机自启）
 ├── logs/                 # 日志目录
 ├── Caddyfile             # Caddy配置文件(自动生成)
 └── README.md             # 本文件
@@ -93,12 +95,66 @@ appnet status
 ### 5. 停止服务
 
 ```bash
-# 停止所有服务和Caddy
-./scripts/app-manager.sh stop
+# 停止所有应用和Caddy
+appnet stop
 
 # 或停止单个应用
-./scripts/app-manager.sh stop otk
+appnet stop otk
 ```
+
+### 6. 开机自启与断电恢复（推荐）
+
+上面 `appnet start` 启动的应用在机器断电/重启后**不会自动恢复**。要实现开机后所有应用自动恢复，需部署两套 systemd 自启：caddy 由 `caddy.service` 管，appnet 应用由 `appnet-apps.service` 管。
+
+**前置条件**：
+- 已安装 caddy 包（提供 `caddy.service`，开机自启）
+- `appnet` 命令在 PATH 中（见步骤 2）
+- 当前用户有 sudo 权限
+
+**部署 Caddy 持久化**（让 caddy.service 加载 appnet 的 Caddyfile，而非默认配置）：
+
+```bash
+# 备份默认配置，软链到 appnet 的 Caddyfile
+sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.default.bak
+sudo rm /etc/caddy/Caddyfile
+sudo ln -s "$(pwd)/Caddyfile" /etc/caddy/Caddyfile
+sudo systemctl restart caddy
+sudo systemctl enable caddy   # 开机自启
+```
+
+> 注意：appnet 的 Caddyfile 把访问日志写到 `/var/log/caddy/appnet-access.log`（绝对路径，避开 systemd `ProtectSystem=full` 沙箱；caddy 用户可写）。部署前确认 `/var/log/caddy` 存在（caddy 包安装时自动创建）。
+
+**部署 appnet-apps.service**（从模板生成，参数化支持换机器/换用户）：
+
+```bash
+# 在 appnet 根目录下执行，自动用当前用户和路径替换占位符
+sed -e "s|__APPNET_USER__|$USER|" \
+    -e "s|__APPNET_GROUP__|$(id -gn)|" \
+    -e "s|__APPNET_DIR__|$(pwd)|" \
+    -e "s|__APPNET_BIN__|$(command -v appnet)|" \
+    scripts/appnet-apps.service > /tmp/appnet-apps.service
+
+sudo cp /tmp/appnet-apps.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable appnet-apps.service
+sudo systemctl start appnet-apps       # 首次启动
+```
+
+**验证**：
+
+```bash
+systemctl status appnet-apps caddy     # 两者都应 active
+appnet status                          # 所有应用 🟢
+```
+
+**工作原理**：
+- `appnet-apps.service` 设 `After=caddy.service` + `Requires=caddy.service`，caddy 先就绪再起 apps
+- `Environment=APPNET_SKIP_CADDY=1` 让 `appnet start/stop` 跳过 caddy 操作（caddy 交给 `caddy.service`），避免冲突
+- `ExecStartPre=appnet stop` 先清理残留进程（含进程组清理 + 端口兜底，防止端口冲突）
+- `ExecStartPost=check-apps.sh` 健康检查，任一 app 未监听则返回非0
+- `Restart=on-failure`：健康检查失败 → unit 重启（先 stop 清理再 start），重试到全部就绪
+
+**范围说明**：本方案保证"开机/重启后恢复"。运行中单个应用崩溃 unit 感知不到（应用以 detached 子进程启动，脱离 cgroup）。如需运行时自愈，可加 cron 定时跑 `scripts/check-apps.sh`，失败则 `appnet start <name>`（可选，未默认开启）。
 
 ## 📝 应用管理
 
@@ -110,11 +166,13 @@ appnet
 
 # 启动服务
 appnet start           # 启动所有应用和Caddy
-appnet start otk       # 启动单个应用
+appnet start otk       # 启动单个应用（不影响Caddy）
 
 # 停止服务
-appnet stop            # 停止所有服务和Caddy
-appnet stop otk        # 停止单个应用
+appnet stop            # 停止所有应用和Caddy
+appnet stop otk        # 停止单个应用（不影响Caddy）
+# 注：设 APPNET_SKIP_CADDY=1 时，appnet start/stop 只管应用，不碰 Caddy
+#     （供 appnet-apps.service 用，Caddy 交给 systemd caddy.service 管理）
 
 # 重启应用
 appnet restart otk     # 重启单个应用
@@ -351,10 +409,10 @@ sudo ./scripts/install-systemd-timer.sh
 
 ## 📝 日志
 
-日志文件存储在 `logs/` 目录：
-- `access.log` - Caddy访问日志
-- `{app-name}.log` - 应用日志
-- `{app-name}.pid` - 进程ID文件
+日志文件存储位置：
+- `/var/log/caddy/appnet-access.log` - Caddy 访问日志（由 caddy.service 写入，caddy 用户可写；避开了 systemd `ProtectSystem=full` 沙箱，勿改回相对路径）
+- `logs/{app-name}.log` - 应用日志
+- `logs/{app-name}.pid` - 进程ID文件
 
 查看日志：
 
@@ -362,8 +420,11 @@ sudo ./scripts/install-systemd-timer.sh
 # 查看应用日志
 tail -f logs/otk.log
 
-# 查看Caddy访问日志
-tail -f logs/access.log
+# 查看 Caddy 访问日志（需 caddy 用户或 sudo）
+sudo tail -f /var/log/caddy/appnet-access.log
+
+# 查看 appnet-apps.service 启动日志
+journalctl -u appnet-apps -b --no-pager | tail -30
 ```
 
 ## 🔒 Git版本控制
@@ -382,33 +443,61 @@ git log
 
 ## 🐛 故障排除
 
-### 端口被占用
+### Caddy 在跑但应用访问 502/无法访问
+
+最常见原因：caddy 进程在跑，但加载的不是 appnet 配置（如重启后 systemd 加载了默认 `/etc/caddy/Caddyfile`）。诊断：
 
 ```bash
-# 查看端口占用
-lsof -i :8880
+appnet status
+# 若显示 "⚠️ Running (PID) but NOT listening on :8880 — wrong config?"
+# 说明 caddy 加载了错误配置
 
-# 释放端口
-fuser -k 8880/tcp
+# 验证：检查 /etc/caddy/Caddyfile 是否软链到 appnet
+ls -la /etc/caddy/Caddyfile
+# 应显示 -> /home/.../appnet/Caddyfile，否则按"开机自启"章节重新软链
+```
+
+### 应用进程残留导致端口被占用
+
+`appnet stop` 会清理进程组 + 端口兜底，但极端情况（如 kill -9 后）可能残留。诊断用 `ss`（非 root 可靠，`lsof` 对其他用户进程不可靠）：
+
+```bash
+# 查看端口监听情况
+ss -ltnp 'sport = :28884'
+
+# 强制清理（替换为实际 pid）
+kill -9 <pid>
+```
+
+### appnet-apps.service 启动失败
+
+```bash
+# 查看 unit 日志（含 stop 清理 → start → check-apps 各阶段）
+journalctl -u appnet-apps -b --no-pager | tail -50
+
+# 手动复现 unit 流程排查
+APPNET_SKIP_CADDY=1 appnet stop
+APPNET_SKIP_CADDY=1 appnet start
+./scripts/check-apps.sh   # 应返回 0
 ```
 
 ### 服务无法启动
 
 ```bash
 # 查看状态
-./scripts/app-manager.sh status
+appnet status
 
-# 查看日志
+# 查看应用日志
 tail -f logs/otk.log
 
 # 检查配置
-./scripts/app-manager.sh list
+appnet list
 ```
 
-### 重新生成Caddyfile
+### 重新生成 Caddyfile
 
 ```bash
-./scripts/app-manager.sh reload
+appnet reload
 ```
 
 ### 应用无法通过代理访问

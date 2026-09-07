@@ -158,7 +158,7 @@ if landing_enabled:
     lines.append("")
 
 lines.append("    log {")
-lines.append("        output file logs/access.log")
+lines.append("        output file /var/log/caddy/appnet-access.log")
 lines.append("        format json")
 lines.append("    }")
 lines.append("}")

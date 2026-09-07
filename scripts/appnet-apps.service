@@ -1,0 +1,49 @@
+# AppNet Applications systemd unit (模板)
+#
+# 部署说明：
+#   换机器/换用户部署时，把下面的占位符替换为实际值：
+#     __APPNET_USER__      运行 appnet 命令的用户（需有 appnet 在 PATH，建议是该用户）
+#     __APPNET_GROUP__     该用户的主组
+#     __APPNET_DIR__       appnet 项目根目录的绝对路径（如 /home/bio/manage/appnet）
+#     __APPNET_BIN__       appnet 命令的绝对路径（如 /home/bio/.local/bin/appnet）
+#
+#   一键替换示例（在 appnet 根目录下执行）：
+#     sed -e "s|__APPNET_USER__|$USER|" \
+#         -e "s|__APPNET_GROUP__|$(id -gn)|" \
+#         -e "s|__APPNET_DIR__|$(pwd)|" \
+#         -e "s|__APPNET_BIN__|$(command -v appnet || echo $(pwd)/scripts/app-manager.sh)|" \
+#         scripts/appnet-apps.service > /tmp/appnet-apps.service
+#     sudo cp /tmp/appnet-apps.service /etc/systemd/system/
+#     sudo systemctl daemon-reload
+#     sudo systemctl enable appnet-apps.service
+#
+#   Caddy 由独立的 systemd caddy.service 管理（需 enable 且 /etc/caddy/Caddyfile
+#   软链到 $APPNET_DIR/Caddyfile，见 README "Caddy 持久化"）。本 unit 因
+#   APPNET_SKIP_CADDY=1 不会操作 caddy，只管 apps。
+#
+#   日志路径要求：generate-caddyfile.sh 生成的 Caddyfile 把日志写到
+#   /var/log/caddy/appnet-access.log（caddy 用户可写，避开 systemd 沙箱）。
+#   部署时确保 /var/log/caddy 存在且 caddy 用户可写（caddy 包安装时自动创建）。
+
+[Unit]
+Description=AppNet Applications (auto-start on boot, apps only; caddy by caddy.service)
+After=network-online.target caddy.service
+Wants=network-online.target
+Requires=caddy.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=__APPNET_USER__
+Group=__APPNET_GROUP__
+WorkingDirectory=__APPNET_DIR__
+Environment=APPNET_SKIP_CADDY=1
+ExecStartPre=__APPNET_BIN__ stop
+ExecStart=__APPNET_BIN__ start
+ExecStartPost=__APPNET_DIR__/scripts/check-apps.sh
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120s
+
+[Install]
+WantedBy=multi-user.target
