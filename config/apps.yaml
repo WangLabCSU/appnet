@@ -195,6 +195,18 @@ apps:
         type: full
         strip_prefix: true
 
+  # WangLab DGX 集群网关（new-api）—— 本地 Qwen3.8-27B 的统一入口
+  # 目标在校内网 183.169.10.85:49003；strip_prefix 去掉 /labapi 后透传，
+  # 所以客户端 BASE_URL 用 http://biotree.top:38123/labapi 即可。
+  - name: labapi
+    type: proxy
+    description: "WangLab DGX gateway (new-api) reverse proxy"
+    routes:
+      - path: /labapi
+        target: http://183.169.10.85:49003
+        type: full
+        strip_prefix: true
+
   # 示例：如何禁用应用（保留配置但暂时不用）
   # - name: oldapp
   #   type: monolith
