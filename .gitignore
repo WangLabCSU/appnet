@@ -64,3 +64,8 @@ apps/ucscxena/venv/
 
 courses/
 apps/otk/
+
+# DGX warmup token（明文凭据，勿入库）
+config/dgx-warmup.env
+# 抓包导出的真实首请求载荷（含对话结构，不入库）
+warmup-payloads/
