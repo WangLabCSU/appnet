@@ -9,8 +9,10 @@
 #
 # 怎么工作
 #   遍历 warmup-payloads/ 下的 *.json（**每个客户端家族一份真实首请求**，
-#   从抓包导出、max_tokens 已改 1），逐个以 stream 模式 POST 到
-#   labapi/v1/messages。**必须字节级同前缀**才有命中：prefix cache 只从
+#   从抓包导出、max_tokens 已改 1），逐个以 stream 模式 POST：默认走
+#   labapi/v1/messages（Anthropic 协议），文件名带 .responses 的走
+#   labapi/v1/responses（OpenAI Responses 协议，Codex）。
+#   **必须字节级同前缀**才有命中：prefix cache 只从
 #   token 0 起按块匹配，小探针热不了大载荷；不同工具/版本的前缀不同，
 #   Claude Code 各版本共享稳定头部可部分覆盖，其他工具要各自抓包补文件。
 #
@@ -36,7 +38,7 @@ LOCK_FILE="$APPNET_DIR/logs/dgx-warmup.lock"
 
 # 上游与模型。URL 用公网隧道入口（与真实客户端同路径，网关与 Caddy
 # 都能被顺带保温）；max_tokens=1 只为刷 LRU 时钟，不产出内容。
-URL="http://biotree.top:38123/labapi/v1/messages"
+BASE_URL="http://biotree.top:38123/labapi/v1"
 MODEL="qwen3.8-flash-next"
 CURL_TIMEOUT=90
 
@@ -70,6 +72,12 @@ fi
 echo "[$(date '+%F %T')] start: ${#payloads[@]} 个载荷" >> "$LOG_FILE"
 for pf in "${payloads[@]}"; do
     name=$(basename "$pf" .json)
+    # 按文件名路由协议：*.responses.json 走 OpenAI Responses API（Codex），
+    # 其余默认走 Anthropic Messages API（Claude Code / zcode）。
+    case "$name" in
+        *.responses) URL="$BASE_URL/responses" ;;
+        *)           URL="$BASE_URL/messages" ;;
+    esac
     # TTFT 取流式首字节；总耗时取整次请求。都不打印体与头，避免泄凭据。
     ttff=$(curl -s -o /dev/null -X POST "$URL" \
         -H "authorization: Bearer $DGX_WARMUP_TOKEN" \
