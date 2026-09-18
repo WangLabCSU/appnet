@@ -14,6 +14,9 @@ vLLM 的 prefix cache **只从 token 0 起按块匹配**：system + tools +
 - 小探针（"hi" 之类）热不了大载荷，别指望通用载荷
 
 文件名约定：`<客户端>-<版本>.json`，脚本遍历 `*.json` 全部重放。
+文件名带 `.responses`（如 `codex-cli-0.152.0.responses.json`）走
+OpenAI Responses API（`/v1/responses`），其余默认走 Anthropic
+Messages API（`/v1/messages`）。
 
 ## 怎么抓一个新家族（5 步）
 
@@ -40,6 +43,7 @@ vLLM 的 prefix cache **只从 token 0 起按块匹配**：system + tools +
 
 4. **改写与脱敏**（都在本地完成，再传上来）：
    - `"max_tokens"` → `1`（预热只为刷 LRU 时钟，不产出内容）
+     （Codex /v1/responses 载荷无此字段，保持原样即可）
    - 保留 `"stream": true`（TTFT 从流式首字节计）
    - 检查并替换个人路径：`/Users/<name>/` → `/HOME/`、memory 目录
      路径 → `/HOME/.claude/projects/-PROJECT-SLUG/memory/` 等占位符
@@ -72,6 +76,14 @@ vLLM 的 prefix cache **只从 token 0 起按块匹配**：system + tools +
 | 冷（token 0 即失配） | ~6.1 s |
 | 预热后，同版本他人新会话 | ~2.1–2.2 s |
 | 预热后 10–11 分钟（一个 cron 周期内） | ~2.0–2.1 s |
+
+已覆盖家族：`claude-code-2.1.274`、`zcode-3.12.3`（Anthropic 协议）、
+`codex-cli-0.152.0`（Responses 协议）——三族热态 ttff 均 ≈1.6–3 s。
+
+⚠️ **Codex 兼容性坑（0.152.0）**：其默认请求带一个 `web_search` 服务端
+工具（仅 `{"type": "web_search", ...}`，无 `input_schema`），网关校验
+会拒（400）。抓 Codex 载荷时从体里**删掉该工具**即可（其余 8 个工具
+保留，前缀仍然有效）；已禁用 web search 的 Codex 本来就不带它。
 
 效果边界：只覆盖**与已抓载荷同前缀**的客户端版本。Claude Code 升级
 后 system/tools 变化时需重抓；团队里出现新接入工具时按上面 5 步补。
