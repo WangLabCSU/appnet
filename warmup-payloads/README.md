@@ -80,10 +80,11 @@ Messages API（`/v1/messages`）。
 已覆盖家族：`claude-code-2.1.274`、`zcode-3.12.3`（Anthropic 协议）、
 `codex-cli-0.152.0`（Responses 协议）——三族热态 ttff 均 ≈1.6–3 s。
 
-⚠️ **Codex 兼容性坑（0.152.0）**：其默认请求带一个 `web_search` 服务端
-工具（仅 `{"type": "web_search", ...}`，无 `input_schema`），网关校验
-会拒（400）。抓 Codex 载荷时从体里**删掉该工具**即可（其余 8 个工具
-保留，前缀仍然有效）；已禁用 web search 的 Codex 本来就不带它。
+**Codex 说明（2026-09-19 更新）**：Codex 默认请求带一个 `web_search`
+服务端工具（无 `input_schema`），上游 vLLM 会拒。**网关现已部署
+tool-filter 自动剔除**（dgx-portal `services/new-api/`），所以载荷里
+带不带它都能预热成功；现有 `codex-cli-0.152.0.responses.json` 是删掉
+该工具后抓的，继续有效（上游渲染结果相同，前缀一致）。
 
 效果边界：只覆盖**与已抓载荷同前缀**的客户端版本。Claude Code 升级
 后 system/tools 变化时需重抓；团队里出现新接入工具时按上面 5 步补。
