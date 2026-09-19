@@ -45,6 +45,11 @@
     }
     redir /ucscxena /ucscxena/ 308
 
+    handle_path /websearch/* {
+        reverse_proxy localhost:28891
+    }
+    redir /websearch /websearch/ 308
+
     handle_path /rstudio/* {
         reverse_proxy localhost:8787 {
             header_up X-RStudio-Root-Path /rstudio
@@ -66,6 +71,11 @@
         reverse_proxy http://183.169.10.85:49003
     }
     redir /labapi /labapi/ 308
+
+    handle_path /websearch/* {
+        reverse_proxy localhost:28891
+    }
+    redir /websearch /websearch/ 308
 
     @landing path /
     handle @landing {
