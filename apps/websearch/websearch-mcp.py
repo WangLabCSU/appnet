@@ -51,6 +51,7 @@ DuckDuckGo 在本网络不通，故不采用。自托管 SearXNG 亦实测不可
 from __future__ import annotations
 
 import argparse
+import hmac
 import html
 import ipaddress
 import json
@@ -148,6 +149,18 @@ def _is_public_http_target(url: str) -> bool:
     return True
 
 
+class _PublicOnlyRedirect(urllib.request.HTTPRedirectHandler):
+    """重定向逐跳复检：302 到内网地址是 SSRF 防护最容易被绕过的口子。"""
+
+    def __init__(self, public_only: bool):
+        self._public_only = public_only
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if self._public_only and not _is_public_http_target(newurl):
+            raise FetchError(f"重定向目标未通过内网防护检查，已拒绝：{newurl[:80]}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def fetch_page(url: str, max_chars: int = FETCH_CHARS, *,
                public_only: bool = False) -> str:
     """抓 URL 并返回正文纯文本。二进制页显式报错，不返回乱码。"""
@@ -158,7 +171,8 @@ def fetch_page(url: str, max_chars: int = FETCH_CHARS, *,
             "共享实例禁止抓取内网/保留地址（含解析到私网 IP 的域名）。")
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        opener = urllib.request.build_opener(_PublicOnlyRedirect(public_only))
+        with opener.open(req, timeout=TIMEOUT) as r:
             ctype = (r.headers.get("content-type") or "").lower()
             if ctype and not any(k in ctype for k in ("text/", "json", "xml")):
                 raise FetchError(f"非文本页面（content-type: {ctype}），无法抓正文。")
@@ -299,9 +313,12 @@ def main_http(listen: str, token: str) -> None:
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        timeout = 60  # 慢连接/半开连接挂死线程的兜底
 
         def _authed(self) -> bool:
-            return self.headers.get("Authorization") == expected
+            # 常量时间比较：不给 token 逐字节试探留计时侧信道
+            return hmac.compare_digest(self.headers.get("Authorization") or "",
+                                       expected)
 
         def do_POST(self) -> None:
             if self.path.rstrip("/") != "/mcp":
@@ -310,9 +327,16 @@ def main_http(listen: str, token: str) -> None:
             if not self._authed():
                 self.send_error(401, "missing or wrong bearer token")
                 return
-            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                self.send_error(400, "bad Content-Length")
+                return
+            if length < 0:
+                self.send_error(400, "bad Content-Length")
+                return
             if length > MAX_RPC_BODY_BYTES:
-                self.send_error(413)
+                self.send_error(413, "body too large")
                 return
             try:
                 msg = json.loads(self.rfile.read(length))
