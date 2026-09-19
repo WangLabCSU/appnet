@@ -107,13 +107,18 @@ def _browser_opener() -> urllib.request.OpenerDirector:
     return opener
 
 
-def search(query: str, count: int = DEFAULT_COUNT) -> list[dict[str, str]]:
+def _search_bing_once(query: str, count: int, *,
+                      quoted: bool = False, ensearch: bool = False) -> list[dict[str, str]]:
+    core = query.strip().strip('"\'')
+    params = {"q": f'"{core}"' if quoted else query, "count": count}
+    if ensearch:
+        params["ensearch"] = "1"
     opener = _browser_opener()
     try:
         opener.open("https://cn.bing.com/", timeout=TIMEOUT).read(65536)
     except Exception:
         pass  # 首页预热失败不阻断搜索：cookie 只是锦上添花
-    url = "https://cn.bing.com/search?" + urllib.parse.urlencode({"q": query, "count": count})
+    url = "https://cn.bing.com/search?" + urllib.parse.urlencode(params)
     with opener.open(url, timeout=TIMEOUT) as r:
         raw = r.read().decode("utf-8", errors="replace")
 
@@ -137,6 +142,44 @@ def search(query: str, count: int = DEFAULT_COUNT) -> list[dict[str, str]]:
             + ("页面过小，查询可能为空或被拒。" if len(raw) < DEGENERATE_PAGE_BYTES
                else "页面大小正常却解析不出条目，Bing 版式可能已变，需维护本工具。"))
     return out
+
+
+def _longest_cjk_run(query: str) -> str:
+    """取查询里最长的连续中文串（如「王诗翔」）；无则返回空。"""
+    runs = re.findall(r"[一-鿿]{2,}", query)
+    return max(runs, key=len) if runs else ""
+
+
+def _looks_degenerate(query: str, hits: list[dict[str, str]]) -> bool:
+    """分词跑偏检测：最长的中文关键词在全部标题+摘要里一次都没出现。
+
+    实测（2026-09-19）：搜「王诗翔」时 cn.bing 常把名字拆散，整页返回
+    「王」字字典/王姓/王者荣耀，与查询语义完全脱钩。此为启发式，宁可
+    漏判（多发一次变体重试）不可误伤正常结果。
+    """
+    core = _longest_cjk_run(query)
+    if not core or not hits:
+        return False
+    joined = "".join(h["title"] + h["snippet"] for h in hits)
+    return core not in joined
+
+
+def search(query: str, count: int = DEFAULT_COUNT) -> list[dict[str, str]]:
+    """三级重试：原样 → 加引号 → 加引号+国际版。首击退化时服务端自愈。"""
+    last_err: Exception | None = None
+    hits: list[dict[str, str]] | None = None
+    for attempt, flags in enumerate(({}, {"quoted": True}, {"quoted": True, "ensearch": True})):
+        try:
+            hits = _search_bing_once(query, count, **flags)
+        except SearchError as e:
+            last_err = e
+            continue
+        if attempt == 0 or not _looks_degenerate(query, hits):
+            return hits
+        # 首击分词跑偏：落入下一级变体
+    if hits:
+        return hits  # 各变体都退化：返回可解析结果，交模型按描述换路
+    raise last_err if last_err is not None else SearchError("Bing 搜索失败。")
 
 
 def _decode_body(body: bytes, content_type: str) -> str:
@@ -440,7 +483,7 @@ def handle(msg: dict, *, public_only: bool = False) -> dict | None:
         return {"jsonrpc": "2.0", "id": mid, "result": {
             "protocolVersion": (msg.get("params") or {}).get("protocolVersion", "2024-11-05"),
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "websearch", "version": "1.4.1"}}}
+            "serverInfo": {"name": "websearch", "version": "1.4.2"}}}
     if method == "ping":                      # MCP 规定的保活方法，回空 result
         return {"jsonrpc": "2.0", "id": mid, "result": {}}
     if method in ("notifications/initialized", "notifications/cancelled"):
