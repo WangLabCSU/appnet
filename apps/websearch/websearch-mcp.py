@@ -53,6 +53,7 @@ from __future__ import annotations
 import argparse
 import hmac
 import html
+import http.cookiejar
 import ipaddress
 import json
 import re
@@ -64,8 +65,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
+HEADERS_BROWSER = {"User-Agent": UA,
+                   "Accept": ("text/html,application/xhtml+xml,application/xml;"
+                              "q=0.9,*/*;q=0.8"),
+                   "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"}
 TIMEOUT = 20
+SCHOLAR_TIMEOUT = 20
 DEFAULT_COUNT = 8
+DEFAULT_SCHOLAR_COUNT = 5
 FETCH_CHARS = 6000
 MAX_DOWNLOAD_BYTES = 2_000_000
 # HTTP 模式请求体上限：MCP 的 tools/call 参数就几十字节，5MB 是宽裕安全界
@@ -86,10 +93,27 @@ class FetchError(RuntimeError):
     """抓取链路出了问题（URL 非法 / 非文本页 / 网络错误）——显式暴露给模型。"""
 
 
+def _browser_opener() -> urllib.request.OpenerDirector:
+    """带 cookie jar 的浏览器式 opener。
+
+    2026-09-19 实测：无 cookie 的素请求，cn.bing 对同一 query 的 SERP 有
+    时段性波动（时而正确人物、时而字典词条）；先访问首页建立会话再搜索，
+    请求指纹更接近浏览器，用于压低波动概率。
+    """
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    opener.addheaders = list(HEADERS_BROWSER.items())
+    return opener
+
+
 def search(query: str, count: int = DEFAULT_COUNT) -> list[dict[str, str]]:
+    opener = _browser_opener()
+    try:
+        opener.open("https://cn.bing.com/", timeout=TIMEOUT).read(65536)
+    except Exception:
+        pass  # 首页预热失败不阻断搜索：cookie 只是锦上添花
     url = "https://cn.bing.com/search?" + urllib.parse.urlencode({"q": query, "count": count})
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+    with opener.open(url, timeout=TIMEOUT) as r:
         raw = r.read().decode("utf-8", errors="replace")
 
     out: list[dict[str, str]] = []
@@ -123,6 +147,101 @@ def _decode_body(body: bytes, content_type: str) -> str:
         except (LookupError, UnicodeDecodeError):
             pass
     return body.decode("utf-8", errors="replace")
+
+
+# ---------- 学术检索（官方 API，免 key；Semantic Scholar 实测 429 弃用） ----------
+
+def _scholar_get(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=SCHOLAR_TIMEOUT) as r:
+        return r.read()
+
+
+def _scholar_openalex(query: str, count: int) -> list[str]:
+    sel = ("display_name,publication_year,doi,cited_by_count,"
+           "authorships,primary_location")
+    url = ("https://api.openalex.org/works?"
+           + urllib.parse.urlencode({"search": query, "per-page": count,
+                                     "select": sel}))
+    data = json.loads(_scholar_get(url))
+    out = []
+    for w in data.get("results", []):
+        authors = ", ".join(a.get("author", {}).get("display_name", "")
+                            for a in w.get("authorships", [])[:3]).strip(", ")
+        src = (w.get("primary_location") or {}).get("source") or {}
+        out.append(f"{w.get('display_name')} | {authors} | {w.get('publication_year')} "
+                   f"| {src.get('display_name')} | 被引 {w.get('cited_by_count')} | {w.get('doi')}")
+    return out
+
+
+def _scholar_pubmed(query: str, count: int) -> list[str]:
+    base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+    url = base + "/esearch.fcgi?" + urllib.parse.urlencode(
+        {"db": "pubmed", "term": query, "retmax": count, "retmode": "json"})
+    ids = json.loads(_scholar_get(url))["esearchresult"].get("idlist", [])
+    if not ids:
+        return []
+    url = base + "/esummary.fcgi?" + urllib.parse.urlencode(
+        {"db": "pubmed", "id": ",".join(ids), "retmode": "json"})
+    docs = json.loads(_scholar_get(url))["result"]
+    out = []
+    for pid in docs.get("uids", []):
+        d = docs[pid]
+        out.append(f"{d.get('title')} | {d.get('lastauthor')} | {d.get('pubdate')} "
+                   f"| {d.get('fulljournalname')} | https://pubmed.ncbi.nlm.nih.gov/{pid}/")
+    return out
+
+
+def _scholar_arxiv(query: str, count: int) -> list[str]:
+    url = ("http://export.arxiv.org/api/query?"
+           + urllib.parse.urlencode({"search_query": f"all:{query}",
+                                     "max_results": count,
+                                     "sortBy": "relevance"}))
+    xml = _scholar_get(url).decode("utf-8", errors="replace")
+    out = []
+    for entry in re.findall(r"<entry>(.*?)</entry>", xml, re.S):
+        title = re.sub(r"\s+", " ", re.search(r"<title>(.*?)</title>", entry, re.S).group(1)).strip()
+        authors = ", ".join(re.findall(r"<name>(.*?)</name>", entry)[:3])
+        year = re.search(r"<published>(\d{4})", entry)
+        aid = re.search(r"<id>(http://arxiv.org/abs/.*?)</id>", entry)
+        out.append(f"{title} | {authors} | {year.group(1) if year else ''} | {aid.group(1) if aid else ''}")
+    return out
+
+
+def _scholar_crossref(query: str, count: int) -> list[str]:
+    sel = "title,author,container-title,issued,DOI,is-referenced-by-count"
+    url = ("https://api.crossref.org/works?"
+           + urllib.parse.urlencode({"query": query, "rows": count, "select": sel}))
+    items = json.loads(_scholar_get(url))["message"]["items"]
+    out = []
+    for w in items:
+        authors = ", ".join(f"{a.get('family', '')} {a.get('given', '')}".strip()
+                            for a in w.get("author", [])[:3]).strip(", ")
+        year = (w.get("issued", {}).get("date-parts") or [[None]])[0][0]
+        title = (w.get("title") or [""])[0]
+        venue = (w.get("container-title") or [""])[0]
+        out.append(f"{title} | {authors} | {year} | {venue} "
+                   f"| 被引 {w.get('is-referenced-by-count')} | https://doi.org/{w.get('DOI')}")
+    return out
+
+
+SCHOLAR_SOURCES = {
+    "openalex": _scholar_openalex,   # 全学科，含引用数（默认）
+    "pubmed": _scholar_pubmed,       # 生物医学（本实验室主场景）
+    "arxiv": _scholar_arxiv,         # 预印本
+    "crossref": _scholar_crossref,   # DOI 元数据
+}
+
+
+def scholar_search(query: str, source: str = "openalex",
+                   count: int = DEFAULT_SCHOLAR_COUNT) -> list[str]:
+    fn = SCHOLAR_SOURCES.get(source)
+    if fn is None:
+        raise SearchError(f"未知学术源 {source}，可用：{'/'.join(SCHOLAR_SOURCES)}")
+    hits = fn(query, count)
+    if not hits:
+        raise SearchError(f"{source} 返回 0 条结果：可能确实没有相关文献。")
+    return hits
 
 
 def _is_public_http_target(url: str) -> bool:
@@ -236,6 +355,26 @@ TOOL_FETCH = {
     },
 }
 
+TOOL_SCHOLAR = {
+    "name": "scholar_search",
+    "description": ("检索学术文献（官方数据库 API，返回 标题 | 作者 | 年份 | "
+                    "期刊/仓库 | 被引/链接）。找论文、查作者代表作、对比研究时"
+                    "用本工具而非 web_search。source 选择：openalex（全学科+"
+                    "被引数，默认）、pubmed（生物医学，本实验室主场景）、"
+                    "arxiv（预印本）、crossref（DOI 元数据）。通用网页检索"
+                    "仍用 web_search。"),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "学术查询词（英文效果最好）"},
+            "source": {"type": "string", "enum": list(SCHOLAR_SOURCES),
+                       "description": "学术数据库，默认 openalex"},
+            "count": {"type": "integer", "description": f"返回条数，默认 {DEFAULT_SCHOLAR_COUNT}"},
+        },
+        "required": ["query"],
+    },
+}
+
 
 def _text(mid: object, text: str, *, is_error: bool = False) -> dict:
     result: dict = {"content": [{"type": "text", "text": text}]}
@@ -259,6 +398,13 @@ def _run_tool(name: object, args: dict, *, public_only: bool = False) -> str:
         if not url:
             raise FetchError("URL 为空。")
         return fetch_page(url, public_only=public_only)
+    if name == "scholar_search":
+        query = str(args.get("query") or "").strip()
+        if not query:
+            raise SearchError("查询关键词为空。")
+        source = str(args.get("source") or "openalex")
+        hits = scholar_search(query, source, _as_count(args.get("count", DEFAULT_SCHOLAR_COUNT)))
+        return "\n\n".join(f"{i}. {h}" for i, h in enumerate(hits, 1))
     query = str(args.get("query") or "").strip()
     if not query:
         raise SearchError("查询关键词为空。")
@@ -274,13 +420,13 @@ def handle(msg: dict, *, public_only: bool = False) -> dict | None:
         return {"jsonrpc": "2.0", "id": mid, "result": {
             "protocolVersion": (msg.get("params") or {}).get("protocolVersion", "2024-11-05"),
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "websearch", "version": "1.3.1"}}}
+            "serverInfo": {"name": "websearch", "version": "1.4.0"}}}
     if method == "ping":                      # MCP 规定的保活方法，回空 result
         return {"jsonrpc": "2.0", "id": mid, "result": {}}
     if method in ("notifications/initialized", "notifications/cancelled"):
         return None
     if method == "tools/list":
-        return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [TOOL, TOOL_FETCH]}}
+        return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [TOOL, TOOL_FETCH, TOOL_SCHOLAR]}}
     if method == "tools/call":
         params = msg.get("params") or {}
         args = params.get("arguments") or {}
