@@ -56,6 +56,7 @@ import html
 import http.cookiejar
 import ipaddress
 import json
+import os
 import re
 import socket
 import sys
@@ -151,6 +152,24 @@ def _decode_body(body: bytes, content_type: str) -> str:
 
 # ---------- 学术检索（官方 API，免 key；Semantic Scholar 实测 429 弃用） ----------
 
+# NCBI 与 OpenAlex 的可选身份信息：都从环境读（服务端 0600 .env），不给也能用。
+# NCBI 带 api_key 后限速 3→10 req/s；OpenAlex 带 mailto 进官方 polite pool
+# （共享 IP 下更稳）。凭据绝不写进仓库或文档。
+NCBI_API_KEY = os.environ.get("NCBI_API_KEY", "")
+NCBI_EMAIL = os.environ.get("NCBI_EMAIL", "")
+NCBI_TOOL = "websearch-mcp"
+
+
+def _ncbi_params(params: dict) -> dict:
+    params = dict(params)
+    if NCBI_API_KEY:
+        params["api_key"] = NCBI_API_KEY
+    if NCBI_EMAIL:
+        params["email"] = NCBI_EMAIL
+    params.setdefault("tool", NCBI_TOOL)
+    return params
+
+
 def _scholar_get(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=SCHOLAR_TIMEOUT) as r:
@@ -160,9 +179,10 @@ def _scholar_get(url: str) -> bytes:
 def _scholar_openalex(query: str, count: int) -> list[str]:
     sel = ("display_name,publication_year,doi,cited_by_count,"
            "authorships,primary_location")
-    url = ("https://api.openalex.org/works?"
-           + urllib.parse.urlencode({"search": query, "per-page": count,
-                                     "select": sel}))
+    params = {"search": query, "per-page": count, "select": sel}
+    if NCBI_EMAIL:  # OpenAlex polite pool：附邮箱获更稳的共享限速
+        params["mailto"] = NCBI_EMAIL
+    url = "https://api.openalex.org/works?" + urllib.parse.urlencode(params)
     data = json.loads(_scholar_get(url))
     out = []
     for w in data.get("results", []):
@@ -176,13 +196,13 @@ def _scholar_openalex(query: str, count: int) -> list[str]:
 
 def _scholar_pubmed(query: str, count: int) -> list[str]:
     base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
-    url = base + "/esearch.fcgi?" + urllib.parse.urlencode(
-        {"db": "pubmed", "term": query, "retmax": count, "retmode": "json"})
+    url = base + "/esearch.fcgi?" + urllib.parse.urlencode(_ncbi_params(
+        {"db": "pubmed", "term": query, "retmax": count, "retmode": "json"}))
     ids = json.loads(_scholar_get(url))["esearchresult"].get("idlist", [])
     if not ids:
         return []
-    url = base + "/esummary.fcgi?" + urllib.parse.urlencode(
-        {"db": "pubmed", "id": ",".join(ids), "retmode": "json"})
+    url = base + "/esummary.fcgi?" + urllib.parse.urlencode(_ncbi_params(
+        {"db": "pubmed", "id": ",".join(ids), "retmode": "json"}))
     docs = json.loads(_scholar_get(url))["result"]
     out = []
     for pid in docs.get("uids", []):
@@ -420,7 +440,7 @@ def handle(msg: dict, *, public_only: bool = False) -> dict | None:
         return {"jsonrpc": "2.0", "id": mid, "result": {
             "protocolVersion": (msg.get("params") or {}).get("protocolVersion", "2024-11-05"),
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "websearch", "version": "1.4.0"}}}
+            "serverInfo": {"name": "websearch", "version": "1.4.1"}}}
     if method == "ping":                      # MCP 规定的保活方法，回空 result
         return {"jsonrpc": "2.0", "id": mid, "result": {}}
     if method in ("notifications/initialized", "notifications/cancelled"):
