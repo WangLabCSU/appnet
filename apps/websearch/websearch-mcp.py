@@ -206,7 +206,12 @@ TOOL = {
                     "的信息、实时新闻、或需要引用的资料。摘要往往不足以回答细节"
                     "（版本号、日期、数据、原文表述）——拿到结果后挑最相关的 "
                     "1–2 个链接用 fetch_page 读正文再作答，回答时给出出处 URL。"
-                    "查不到时如实报告，不要编造。"),
+                    "查不到时如实报告，不要编造。"
+                    "人物/机构等实体查询注意：中文人名常被搜索引擎分词而搜不到；"
+                    "结果与上次相同或全是无关词条时立刻换策略——改英文名+平台词，"
+                    "或直接猜规范 URL（如 github.com/<用户名>、<名>.github.io）"
+                    "用 fetch_page 验证。回答人物事实时只陈述页面可证实的内容，"
+                    "自己记忆里的信息须标注「未经页面证实」。"),
     "inputSchema": {
         "type": "object",
         "properties": {
@@ -269,7 +274,7 @@ def handle(msg: dict, *, public_only: bool = False) -> dict | None:
         return {"jsonrpc": "2.0", "id": mid, "result": {
             "protocolVersion": (msg.get("params") or {}).get("protocolVersion", "2024-11-05"),
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "websearch", "version": "1.3.0"}}}
+            "serverInfo": {"name": "websearch", "version": "1.3.1"}}}
     if method == "ping":                      # MCP 规定的保活方法，回空 result
         return {"jsonrpc": "2.0", "id": mid, "result": {}}
     if method in ("notifications/initialized", "notifications/cancelled"):
