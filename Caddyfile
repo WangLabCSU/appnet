@@ -77,11 +77,6 @@
     }
     redir /tcria /tcria/ 308
 
-    handle_path /websearch/* {
-        reverse_proxy localhost:28891
-    }
-    redir /websearch /websearch/ 308
-
     @landing path /
     handle @landing {
         file_server

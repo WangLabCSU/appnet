@@ -230,18 +230,6 @@ apps:
         type: full
         strip_prefix: true
 
-  # WebSearch MCP 团队共享实例（免安装接入：claude mcp add --transport http，
-  # 详见 dgx-portal docs/clients.md §8 与 clients/websearch-mcp.py --http 模式）
-  - name: websearch
-    type: custom
-    description: "WebSearch/Fetch MCP server (Streamable HTTP, token auth)"
-    start_script: start.sh
-    routes:
-      - path: /websearch
-        target: localhost:28891
-        type: full
-        strip_prefix: true
-
   # 示例：如何禁用应用（保留配置但暂时不用）
   # - name: oldapp
   #   type: monolith
