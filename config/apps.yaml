@@ -219,6 +219,17 @@ apps:
         type: full
         strip_prefix: true
 
+  # TCRIA - 学生自管应用（appnet 仅提供反向代理，不管理进程生命周期）
+  # 由学生自行开发运维 9527 端口，稳定后再完整纳入 appnet 部署
+  - name: tcria
+    type: proxy
+    description: "TCRIA - student-managed app (proxy only)"
+    routes:
+      - path: /tcria
+        target: localhost:9527
+        type: full
+        strip_prefix: true
+
   # WebSearch MCP 团队共享实例（免安装接入：claude mcp add --transport http，
   # 详见 dgx-portal docs/clients.md §8 与 clients/websearch-mcp.py --http 模式）
   - name: websearch

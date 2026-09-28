@@ -72,6 +72,11 @@
     }
     redir /labapi /labapi/ 308
 
+    handle_path /tcria/* {
+        reverse_proxy localhost:9527
+    }
+    redir /tcria /tcria/ 308
+
     handle_path /websearch/* {
         reverse_proxy localhost:28891
     }
