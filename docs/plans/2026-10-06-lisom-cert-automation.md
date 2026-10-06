@@ -221,10 +221,9 @@ if [ -n "$alerts" ]; then
     exit 1
 fi
 
-echo "[$ts] OK: 两域名边缘指纹一致,本地证书剩 ${dl} 天" >> "$LOG_FILE"
-if [ "$(date +%u)" = "1" ]; then   # 每日心跳,防"监控静默死亡"
-    "$NOTIFY" "✅ lisom 证书监控正常(本地证书剩 ${dl} 天)"
-fi
+echo "[$ts] OK: 两域名边缘指纹与证书链一致,本地证书剩 ${dl} 天" >> "$LOG_FILE"
+# 每日心跳(dead-man's switch):若无此消息,即说明监控或通知通道已异常
+"$NOTIFY" "✅ lisom 证书监控心跳:剩 ${dl} 天(每日一条,断更即异常)"
 exit 0
 ```
 

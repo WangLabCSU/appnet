@@ -7,6 +7,8 @@
 #       如 secrets 配置了 DELIVER_MAC(如 wsx@100.x.y.z),额外以 scp -p 推送到其 Downloads/,
 #       失败仅告警;推送成功请在 Mac 上及时清理私钥副本(spec §8)。
 # 命名: key 必须落盘为 .key 扩展名 —— natcross 上传控件按扩展名校验,只收 .pem/.key。
+# 注意: 域名闸门必须判 stdout —— OpenSSL 3.0 的 `x509 -checkhost` 退出码恒为 0
+#       (apps 层 print_cert_checks 返回 void),用 || 判它等于没有闸门(2026-10-06 三审发现)。
 set -u
 umask 027
 
@@ -21,7 +23,10 @@ key="$DEPLOY_DIR/private.key"
 [ -s "$cert" ] && [ -s "$key" ] || { "$NOTIFY" "❌ lisom 证书交付:deploy 文件为空(疑写盘中断),禁止上架"; exit 1; }
 openssl x509 -in "$cert" -noout -pubkey >/dev/null 2>&1 || { "$NOTIFY" "❌ lisom 证书交付:fullchain 无法解析,禁止上架"; exit 1; }
 openssl pkey -in "$key" -noout >/dev/null 2>&1 || { "$NOTIFY" "❌ lisom 证书交付:private.key 无法解析,禁止上架"; exit 1; }
-openssl x509 -in "$cert" -noout -checkhost lisom.work >/dev/null 2>&1 || { "$NOTIFY" "❌ lisom 证书交付:证书域名与 lisom.work 不匹配,禁止上架"; exit 1; }
+openssl x509 -in "$cert" -noout -checkhost lisom.work 2>/dev/null | grep -q "does match certificate" \
+    || { "$NOTIFY" "❌ lisom 证书交付:证书不含 lisom.work,禁止上架"; exit 1; }
+openssl x509 -in "$cert" -noout -checkhost csu.lisom.work 2>/dev/null | grep -q "does match certificate" \
+    || { "$NOTIFY" "❌ lisom 证书交付:证书不含 csu.lisom.work,禁止上架"; exit 1; }
 
 h1="$(openssl x509 -in "$cert" -noout -pubkey | openssl sha256)"
 h2="$(openssl pkey -in "$key" -pubout 2>/dev/null | openssl sha256)"
