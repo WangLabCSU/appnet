@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cert-deliver — acme.sh reloadcmd 钩子:续期完成后的交付与提醒
 # 触发: acme.sh 每次成功续期后自动调用;也可手工运行。
-# 动作: 1) 校验 deploy 目录 fullchain 与 key 配对
+# 动作: 1) 校验 deploy 目录 fullchain 与 key 配对(空文件/不可解析前置拦截)
 #       2) 通知"新证书已就绪"+上架指引;失败则告警
 # 说明: 默认不向 Mac 推送(依赖 Mac 端 sshd,不稳定);通知内附取件命令。
 #       如 secrets 中配置了 DELIVER_MAC(如 wsx@100.x.y.z),额外尝试 scp,失败仅告警。
@@ -16,6 +16,9 @@ cert="$DEPLOY_DIR/fullchain.pem"
 key="$DEPLOY_DIR/private.key"
 
 [ -f "$cert" ] && [ -f "$key" ] || { "$NOTIFY" "❌ lisom 证书交付:deploy 文件缺失($DEPLOY_DIR),请检查 acme.sh --install-cert 配置"; exit 1; }
+[ -s "$cert" ] && [ -s "$key" ] || { "$NOTIFY" "❌ lisom 证书交付:deploy 文件为空(疑写盘中断),禁止上架"; exit 1; }
+openssl x509 -in "$cert" -noout -pubkey >/dev/null 2>&1 || { "$NOTIFY" "❌ lisom 证书交付:fullchain 无法解析,禁止上架"; exit 1; }
+openssl pkey -in "$key" -noout >/dev/null 2>&1 || { "$NOTIFY" "❌ lisom 证书交付:private.key 无法解析,禁止上架"; exit 1; }
 
 h1="$(openssl x509 -in "$cert" -noout -pubkey | openssl sha256)"
 h2="$(openssl pkey -in "$key" -pubout 2>/dev/null | openssl sha256)"

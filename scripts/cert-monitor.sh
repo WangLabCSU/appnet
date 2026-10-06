@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # cert-monitor — lisom.work 证书监控(每日 cron)
-# 检查两件事:
+# 检查三件事:
 #   1) 边缘(natcross)实际下发的证书指纹 == 本地 acme.sh 最新签发指纹?
 #      不等 = "已续签未上架"(上架后边缘异步生效需 1–5 分钟,日检天然容忍)
-#   2) 本地证书剩余天数 < 阈值(默认 15)→ 告警
+#   2) 边缘证书链张数 >= 本地 fullchain 张数?(防"只贴了叶子证书"导致链不完整)
+#   3) 本地证书剩余天数 < 阈值(默认 15)→ 告警
 # 边缘 IP 不硬编码:每次重新解析域名当前 A 记录。
 set -u
 
@@ -37,6 +38,11 @@ edge_fp() {  # $1=hostname  $2=ip
         | openssl x509 -noout -fingerprint -sha256 2>/dev/null | sed 's/^.*=//'
 }
 
+edge_chain() {  # $1=hostname  $2=ip → 链上证书张数
+    echo | timeout 20 openssl s_client -connect "$2:443" -servername "$1" -showcerts 2>/dev/null \
+        | grep -c 'BEGIN CERTIFICATE'
+}
+
 days_left() {
     local end end_epoch
     end="$(openssl x509 -in "$CERT" -noout -enddate 2>/dev/null | cut -d= -f2)"
@@ -49,6 +55,7 @@ if [ -z "$lf" ]; then
     "$NOTIFY" "❌ lisom 证书监控:本地证书读取失败($CERT)"
     exit 1
 fi
+local_n="$(grep -c 'BEGIN CERTIFICATE' "$CERT" 2>/dev/null)"
 
 alerts=""
 for h in "${HOSTS[@]}"; do
@@ -59,6 +66,11 @@ for h in "${HOSTS[@]}"; do
         alerts="${alerts}[$h] 边缘($ip)连接或证书读取失败; "
     elif [ "$ef" != "$lf" ]; then
         alerts="${alerts}[$h] 边缘证书与本地最新签发不一致(可能已续签未上架); "
+    else
+        en="$(edge_chain "$h" "$ip")"
+        if [ "${en:-0}" -lt "${local_n:-0}" ]; then
+            alerts="${alerts}[$h] 边缘证书链不完整(链上 ${en} 张 < 本地 ${local_n} 张,可能只贴了叶子证书); "
+        fi
     fi
 done
 
@@ -73,7 +85,7 @@ if [ -n "$alerts" ]; then
     exit 1
 fi
 
-echo "[$ts] OK: 两域名边缘指纹一致,本地证书剩 ${dl} 天" >> "$LOG_FILE"
+echo "[$ts] OK: 两域名边缘指纹与证书链一致,本地证书剩 ${dl} 天" >> "$LOG_FILE"
 if [ "$(date +%u)" = "1" ]; then   # 每周一心跳,防"监控静默死亡"
     "$NOTIFY" "✅ lisom 证书监控正常(本地证书剩 ${dl} 天)"
 fi

@@ -10,6 +10,8 @@
 
 **Spec:** `docs/specs/2026-10-06-lisom-cert-automation-design.md`
 
+> 实现演进说明:本计划的代码块为设计时版本,**以仓库 `scripts/` 下实现为准**(实现已迭代:private.key 命名、飞书签名校验通道、评审修复)。
+
 ## Global Constraints
 
 - 仓库(远端 GitHub `WangLabCSU/appnet`)内**任何文件不得包含** token / webhook URL / 私钥(spec §8);敏感值只在 `~/.acme.sh/account.conf` 与 `~/manage/secrets/lisom.env`(600)。
@@ -45,8 +47,11 @@
 mkdir -p ~/manage/secrets && chmod 700 ~/manage/secrets
 cat > ~/manage/secrets/lisom.env <<'EOF'
 # lisom 证书自动化敏感配置(0600,严禁入仓库,见 docs/specs/2026-10-06-lisom-cert-automation-design.md §8)
-# 企业微信群机器人 webhook;留空则通知降级为仅写日志
+# 企业微信群机器人 webhook
 WECOM_WEBHOOK=""
+# 飞书自定义机器人 webhook(启用「签名校验」时另填 secret)
+FEISHU_WEBHOOK=""
+FEISHU_SECRET=""
 # 可选:Mac 推送目标(需 Mac 开启 sshd),如 wsx@100.x.y.z;留空则不推送
 DELIVER_MAC=""
 EOF
@@ -265,7 +270,7 @@ git commit -m "feat(cert): 每日证书监控(边缘指纹比对 + 到期阈值 
 - Modify: `docs/specs/2026-10-06-lisom-cert-automation-design.md` §4(补"取件"步骤)
 
 **Interfaces:**
-- Consumes: acme.sh 续期钩子;`~/manage/lisom-cert/{fullchain.pem,privkey.pem}`(由 `--install-cert` 负责落盘与更新)
+- Consumes: acme.sh 续期钩子;`~/manage/lisom-cert/{fullchain.pem,private.key}`(由 `--install-cert` 负责落盘与更新)
 - Produces: `cert-deliver.sh`(无参数)→ 校验配对 → 通知"新证书已签发 + 上架指引";任一失败分支发告警。可选 `DELIVER_MAC` 推送(默认关)。
 
 - [ ] **Step 1: 写脚本(完整代码)**
@@ -285,7 +290,7 @@ NOTIFY="$SCRIPT_DIR/cert-notify.sh"
 DEPLOY_DIR="$HOME/manage/lisom-cert"
 SECRETS_FILE="$HOME/manage/secrets/lisom.env"
 cert="$DEPLOY_DIR/fullchain.pem"
-key="$DEPLOY_DIR/privkey.pem"
+key="$DEPLOY_DIR/private.key"
 
 [ -f "$cert" ] && [ -f "$key" ] || { "$NOTIFY" "❌ lisom 证书交付:deploy 文件缺失($DEPLOY_DIR),请检查 acme.sh --install-cert 配置"; exit 1; }
 
@@ -296,7 +301,7 @@ h2="$(openssl pkey -in "$key" -pubout 2>/dev/null | openssl sha256)"
 fp="$(openssl x509 -in "$cert" -noout -fingerprint -sha256 | sed 's/^.*=//')"
 exp="$(openssl x509 -in "$cert" -noout -enddate | cut -d= -f2)"
 
-"$NOTIFY" "🔔 lisom 新证书已签发(至 ${exp},指纹 ${fp:0:17}…)。上架步骤:① 取件: scp lab-bio:~/manage/lisom-cert/fullchain.pem lab-bio:~/manage/lisom-cert/privkey.pem ~/Downloads/ ② natcross 两个映射(lisom.work / csu.lisom.work)分别贴 pem/key 并保存 ③ 等 1–5 分钟后执行 scripts/cert-monitor.sh 自检"
+"$NOTIFY" "🔔 lisom 新证书已签发(至 ${exp},指纹 ${fp:0:17}…)。上架步骤:① 取件: scp lab-bio:~/manage/lisom-cert/fullchain.pem lab-bio:~/manage/lisom-cert/private.key ~/Downloads/ ② natcross 两个映射(lisom.work / csu.lisom.work)分别贴 pem/key 并保存 ③ 等 1–5 分钟后执行 scripts/cert-monitor.sh 自检"
 
 DELIVER_MAC=""
 [ -f "$SECRETS_FILE" ] && . "$SECRETS_FILE"
@@ -313,12 +318,12 @@ exit 0
 ```bash
 mkdir -p ~/manage/lisom-cert && chmod 700 ~/manage/lisom-cert
 ~/.acme.sh/acme.sh --install-cert -d lisom.work \
-    --key-file   "$HOME/manage/lisom-cert/privkey.pem" \
+    --key-file   "$HOME/manage/lisom-cert/private.key" \
     --fullchain-file "$HOME/manage/lisom-cert/fullchain.pem" \
     --reloadcmd  "$HOME/manage/appnet/scripts/cert-deliver.sh"
 grep -E "Le_(ReloadCmd|RealCertPath|RealKeyPath)" ~/.acme.sh/lisom.work/lisom.work.conf
 ```
-Expected: `--install-cert` 输出成功;conf 中出现三项;`ls -l ~/manage/lisom-cert/` 有 `fullchain.pem` 与 `privkey.pem`(privkey 权限应为 600,若否 `chmod 600`)。
+Expected: `--install-cert` 输出成功;conf 中出现三项;`ls -l ~/manage/lisom-cert/` 有 `fullchain.pem` 与 `private.key`(privkey 权限应为 600,若否 `chmod 600`)。
 (注:`--install-cert` 会**立即执行一次** reloadcmd,因此会马上看到一条「🔔 新证书已签发」日志/通知——此时证书尚未变化,属安装触发的正常现象,忽略即可;Task 4 演练时才是真实触发。)
 
 - [ ] **Step 3: 测试 — 手工运行交付**
@@ -330,9 +335,9 @@ Expected: exit 0;dry-run 打印含"新证书已签发"与取件命令的通知 J
 
 Run:
 ```bash
-mv ~/manage/lisom-cert/privkey.pem /tmp/pk.bak && echo "bad" > ~/manage/lisom-cert/privkey.pem
+mv ~/manage/lisom-cert/private.key /tmp/pk.bak && echo "bad" > ~/manage/lisom-cert/private.key
 NOTIFY_DRY_RUN=1 scripts/cert-deliver.sh; echo "exit=$?"
-mv /tmp/pk.bak ~/manage/lisom-cert/privkey.pem
+mv /tmp/pk.bak ~/manage/lisom-cert/private.key
 ```
 Expected: exit 1,通知含"不配对";恢复后重跑 Step 3 应再次通过。
 
