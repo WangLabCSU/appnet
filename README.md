@@ -511,3 +511,11 @@ MIT License
 ## 🤝 贡献
 
 欢迎提交Issue和Pull Request！
+
+## 🔐 lisom.work 证书自动化(2026-10-06 起)
+
+外网域名(lisom.work / csu.lisom.work)的 HTTPS 证书已全自动签发与续期:acme.sh 自动重签并飞书通知,人工只需在收到通知后花 2 分钟把新证书上传到 natcross 控制台。
+
+- **操作手册(日常唯一要看的文档)**:[docs/证书自动化操作手册.md](docs/证书自动化操作手册.md)
+- 设计 / 实施计划:docs/specs/、docs/plans/
+- 脚本:scripts/cert-notify.sh、cert-monitor.sh、cert-deliver.sh;日志:logs/cert.log

@@ -5,6 +5,8 @@
 - 相关主机:lab-bio(bio 用户)、natcross 边缘(47.238.204.197)
 - 域名:lisom.work、csu.lisom.work(两个 natcross 映射,共用 `*.lisom.work` 证书)
 
+> 面向日常操作:见 [《证书自动化操作手册》](../证书自动化操作手册.md)。
+
 ## 1. 背景与目标
 
 对外链路:
