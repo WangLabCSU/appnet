@@ -3,9 +3,10 @@
 # 检查四件事:
 #   1) 边缘(natcross)实际下发的证书指纹 == 本地 acme.sh 最新签发指纹?
 #      不等 = "已续签未上架"(上架后边缘异步生效需 1–5 分钟,日检天然容忍)
-#   2) 边缘证书链张数 >= 本地 fullchain 张数?(防"只贴了叶子证书"导致链不完整)
+#   2) 边缘链是否只下发了叶子证书(en<=1 告警;en=0 归"核验异常",不再误诊为链截断)
 #   3) acme.sh 续期钩子(reloadcmd)存在且可执行?(防仓库迁移后交付静默失效)
 #   4) 本地证书剩余天数 < 阈值(默认 15)→ 告警
+# 成功路径每日发一条心跳(dead-man's switch):消息断更本身即是"监控/通道异常"的信号。
 # 边缘 IP 不硬编码:每次解析域名当前 A 记录(优先系统解析器,失败回退公共 DNS)。
 set -u
 umask 027
@@ -22,8 +23,12 @@ LOCAL_FP_OVERRIDE=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --threshold-days) THRESHOLD_DAYS="$2"; shift 2 ;;
-        --local-fp)       LOCAL_FP_OVERRIDE="$2"; shift 2 ;;   # 仅供测试:注入本地指纹以模拟异常
+        --threshold-days)
+            [ $# -ge 2 ] || { echo "--threshold-days 需要一个值" >&2; exit 2; }
+            THRESHOLD_DAYS="$2"; shift 2 ;;
+        --local-fp)
+            [ $# -ge 2 ] || { echo "--local-fp 需要一个值" >&2; exit 2; }
+            LOCAL_FP_OVERRIDE="$2"; shift 2 ;;   # 仅供测试:注入本地指纹以模拟异常
         *) echo "未知参数: $1" >&2; exit 1 ;;
     esac
 done
@@ -33,6 +38,8 @@ case "$THRESHOLD_DAYS" in
 esac
 
 ts="$(date '+%F %T')"
+prefix=""
+[ "${NOTIFY_DRY_RUN:-0}" = "1" ] && prefix="[DRY-RUN] "
 mkdir -p "$(dirname "$LOG_FILE")"
 
 local_fp() {
@@ -45,7 +52,7 @@ edge_fp() {  # $1=hostname  $2=ip
         | openssl x509 -noout -fingerprint -sha256 2>/dev/null | sed 's/^.*=//'
 }
 
-edge_chain() {  # $1=hostname  $2=ip → 链上证书张数
+edge_chain() {  # $1=hostname  $2=ip → 链上证书张数(失败时输出 0)
     echo | timeout 20 openssl s_client -connect "$2:443" -servername "$1" -showcerts 2>/dev/null \
         | grep -c 'BEGIN CERTIFICATE'
 }
@@ -59,10 +66,16 @@ resolve_a() {  # $1=hostname → IPv4(系统解析器优先,公共 DNS 回退)
     echo "$ip"
 }
 
-reload_ok() {  # acme.sh 续期钩子可执行?(conf 内为 base64 编码)
+reload_ok() {  # acme.sh 续期钩子可执行?(conf 内通常为 base64 编码;无标记时按原值处理)
     local cmd path
-    cmd="$(grep -E '^Le_ReloadCmd=' "$CONF" 2>/dev/null | cut -d"'" -f2)"
-    path="$(printf '%s' "$cmd" | sed 's/^__ACME_BASE64__START_//; s/__ACME_BASE64__END_$//' | base64 -d 2>/dev/null)"
+    cmd="$(grep -E '^Le_ReloadCmd=' "$CONF" 2>/dev/null | sed 's/^Le_ReloadCmd=//' | tr -d "\047")"
+    [ -n "$cmd" ] || return 1
+    case "$cmd" in
+        *__ACME_BASE64__START_*__ACME_BASE64__END_*)
+            path="$(printf '%s' "$cmd" | sed 's/^__ACME_BASE64__START_//; s/__ACME_BASE64__END_$//' | base64 -d 2>/dev/null)" ;;
+        *)
+            path="$cmd" ;;
+    esac
     [ -n "$path" ] && [ -x "$path" ]
 }
 
@@ -78,7 +91,6 @@ if [ -z "$lf" ]; then
     "$NOTIFY" "❌ lisom 证书监控:本地证书读取失败($CERT)"
     exit 1
 fi
-local_n="$(grep -c 'BEGIN CERTIFICATE' "$CERT" 2>/dev/null)"
 
 alerts=""
 if ! reload_ok; then
@@ -95,8 +107,10 @@ for h in "${HOSTS[@]}"; do
         alerts="${alerts}[$h] 边缘证书与本地最新签发不一致(可能已续签未上架); "
     else
         en="$(edge_chain "$h" "$ip")"
-        if [ "${en:-0}" -lt "${local_n:-0}" ]; then
-            alerts="${alerts}[$h] 边缘证书链不完整(链上 ${en} 张 < 本地 ${local_n} 张,可能只贴了叶子证书); "
+        if [ "${en:-0}" -eq 0 ]; then
+            alerts="${alerts}[$h] 边缘链核验异常(连接抖动或未下发证书链,建议人工复核); "
+        elif [ "${en:-0}" -le 1 ]; then
+            alerts="${alerts}[$h] 边缘只下发了叶子证书(链不完整,可能上架时未贴全); "
         fi
     fi
 done
@@ -107,13 +121,12 @@ if [ "$dl" -lt "$THRESHOLD_DAYS" ]; then
 fi
 
 if [ -n "$alerts" ]; then
-    echo "[$ts] ALERT: $alerts" >> "$LOG_FILE"
+    echo "[$ts] ${prefix}ALERT: $alerts" >> "$LOG_FILE"
     "$NOTIFY" "⚠️ lisom 证书告警:${alerts}(本地指纹 ${lf:0:17}…)"
     exit 1
 fi
 
-echo "[$ts] OK: 两域名边缘指纹与证书链一致,本地证书剩 ${dl} 天" >> "$LOG_FILE"
-if [ "$(date +%u)" = "1" ]; then   # 每周一心跳,防"监控静默死亡"
-    "$NOTIFY" "✅ lisom 证书监控正常(本地证书剩 ${dl} 天)"
-fi
+echo "[$ts] ${prefix}OK: 两域名边缘指纹与证书链一致,本地证书剩 ${dl} 天" >> "$LOG_FILE"
+# 每日心跳(dead-man's switch):若无此消息,即说明监控或通知通道已异常
+"$NOTIFY" "✅ lisom 证书监控心跳:剩 ${dl} 天(每日一条,断更即异常)"
 exit 0

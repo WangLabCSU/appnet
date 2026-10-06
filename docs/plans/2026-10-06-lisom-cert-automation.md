@@ -222,7 +222,7 @@ if [ -n "$alerts" ]; then
 fi
 
 echo "[$ts] OK: 两域名边缘指纹一致,本地证书剩 ${dl} 天" >> "$LOG_FILE"
-if [ "$(date +%u)" = "1" ]; then   # 每周一心跳,防"监控静默死亡"
+if [ "$(date +%u)" = "1" ]; then   # 每日心跳,防"监控静默死亡"
     "$NOTIFY" "✅ lisom 证书监控正常(本地证书剩 ${dl} 天)"
 fi
 exit 0
@@ -247,7 +247,7 @@ Expected: `exit=1`;告警含 `仅剩`。
 
 ```bash
 ( crontab -l 2>/dev/null | grep -v "cert-monitor" ; \
-  echo '7 8 * * * /home/bio/manage/appnet/scripts/cert-monitor.sh >> /home/bio/manage/appnet/logs/cert-cron.log 2>&1' ) | crontab -
+  echo '7 8 * * * umask 027; /home/bio/manage/appnet/scripts/cert-monitor.sh >> /home/bio/manage/appnet/logs/cert-cron.log 2>&1' ) | crontab -
 crontab -l | grep cert-monitor
 ```
 Expected: 输出恰一行 cron;再次执行不会重复(先 grep -v 再追加)。
@@ -256,7 +256,7 @@ Expected: 输出恰一行 cron;再次执行不会重复(先 grep -v 再追加)�
 
 ```bash
 git add scripts/cert-monitor.sh
-git commit -m "feat(cert): 每日证书监控(边缘指纹比对 + 到期阈值 + 周一心跳)"
+git commit -m "feat(cert): 每日证书监控(边缘指纹比对 + 到期阈值 + 每日心跳)"
 ```
 
 ---

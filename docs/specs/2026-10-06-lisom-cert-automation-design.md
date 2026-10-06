@@ -1,7 +1,7 @@
 # lisom.work 证书自动化设计
 
 - 日期:2026-10-06
-- 状态:**签发端已上线 ✅**;上架端 = 半自动(B2,现行);全自动(B1)与监控 = 待实施
+- 状态:**签发端已上线 ✅**;上架端 = 半自动(B2,现行);全链路已上线 ✅(B1 全自动上架仍待评估)
 - 相关主机:lab-bio(bio 用户)、natcross 边缘(47.238.204.197)
 - 域名:lisom.work、csu.lisom.work(两个 natcross 映射,共用 `*.lisom.work` 证书)
 
@@ -49,7 +49,7 @@
 - natcross 保存后**异步生效,约 1–5 分钟**(2026-10-06 实测)
 - 上传后必须自检(命令见 §4),指纹应与 `~/.acme.sh/lisom.work/fullchain.cer` 一致
 
-改进(待实施):给 acme.sh 加 `--reloadcmd` 钩子 → 调用 `scripts/cert-deliver.sh`:
+改进(**已实施 2026-10-06**):给 acme.sh 加 `--reloadcmd` 钩子 → 调用 `scripts/cert-deliver.sh`:
 
 1. 记录日志
 2. 通知「新证书已签发,请上架」
@@ -62,7 +62,7 @@
 风险:非公开接口,对方改版即失效 → **必须在 §2.4 监控就绪后才可启用**;失效会以告警暴露。
 若不可行:长期保持 B2(每 90 天 2 分钟)+ 监控。
 
-### 2.4 监控与通知(待实施)
+### 2.4 监控与通知(已实施 2026-10-06)
 
 `scripts/cert-monitor.sh`(lab-bio cron,每日):
 
@@ -80,7 +80,7 @@
 | lab-bio `~/.acme.sh/` | acme.sh、证书、DNSPod 凭据、续期 cron(已就位) |
 | lab-bio `~/manage/appnet/scripts/cert-*.sh` | cert-deliver.sh、cert-monitor.sh、cert-notify.sh(已实施 2026-10-06) |
 | natcross 控制台 | 两个映射的 pem / key 上传框(人工维护) |
-| Mac `~/Downloads/lisom-cert-<date>/` | 交付副本(2026-10-06 首份位于 `lisom-cert-2026-10/`) |
+| Mac `~/Downloads/` | 交付副本(2026-10-06 首份位于 `lisom-cert-2026-10/`) |
 
 ## 4. 运行手册
 
@@ -128,8 +128,8 @@
 ## 7. 开放项
 
 - [ ] B1 可行性验证(抓一次上传 HAR)
-- [ ] 通知通道最终选型(飞书,已配置并实测送达)
-- [ ] cert-monitor.sh / cert-deliver.sh 实施
+- [x] 通知通道最终选型:飞书(签名校验),已配置并实测送达
+- [x] cert-monitor.sh / cert-deliver.sh 实施(2026-10-06;含链检查/钩子检查/每日心跳)
 
 ## 8. 安全约束(长期有效)
 
