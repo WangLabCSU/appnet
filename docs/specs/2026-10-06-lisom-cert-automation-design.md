@@ -120,3 +120,16 @@
 - [ ] B1 可行性验证(抓一次上传 HAR)
 - [ ] 通知通道最终选型(默认企业微信群机器人)
 - [ ] cert-monitor.sh / cert-deliver.sh 实施
+
+## 8. 安全约束(长期有效)
+
+本仓库远端为 GitHub(`WangLabCSU/appnet`),以下约束长期有效:
+
+- **仓库内任何文件不得包含**:DNSPod token、acmessl API key、通知 webhook URL、私钥内容
+- 敏感值统一放仓库外:
+  - acme.sh 凭据:`~/.acme.sh/account.conf`(600,已在使用)
+  - 后续脚本的敏感配置:`~/manage/secrets/lisom.env`(600,不入库),脚本只引用变量名
+- `.gitignore` 已加入 `*.key`、`*.pem`、`secrets*.env` 防御性规则
+- 私钥副本(如 Mac `~/Downloads/lisom-cert-*/private.key`)用完即删;lab-bio 上的私钥位于
+  `~/.acme.sh`(600 权限)
+- 提交前自查:`git diff --cached` 过一遍,确认无凭据

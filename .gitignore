@@ -70,3 +70,8 @@ config/dgx-warmup.env
 # 抓包导出的真实首请求载荷（含对话结构，不入库）
 warmup-payloads/*
 !warmup-payloads/README.md
+
+# 证书与密钥类文件(防误提交)
+*.key
+*.pem
+secrets*.env
