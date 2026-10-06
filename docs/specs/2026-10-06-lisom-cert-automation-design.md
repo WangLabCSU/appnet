@@ -70,7 +70,7 @@
 2. 与本地最新签发指纹比对 → 不一致 ⇒ 「已续签但未上架」告警
 3. 距到期 < 15 天 ⇒ 「即将到期」告警
 
-通知:`scripts/notify.sh`,默认企业微信群机器人 webhook(URL 存 lab-bio 本地,可替换为邮件等)。
+通知:`scripts/cert-notify.sh`,支持飞书自定义机器人(推荐,安全设置「自定义关键词」= lisom)与企业微信群机器人;URL 存 lab-bio 本地,未配置则仅写日志。
 监控是 B1 敢启用的前提,也是 B2 模式下的保险丝。
 
 ## 3. 组件与文件
@@ -78,7 +78,7 @@
 | 位置 | 内容 |
 |---|---|
 | lab-bio `~/.acme.sh/` | acme.sh、证书、DNSPod 凭据、续期 cron(已就位) |
-| lab-bio `~/manage/appnet/scripts/cert-*.sh` | cert-deliver.sh、cert-monitor.sh、notify.sh(待实施) |
+| lab-bio `~/manage/appnet/scripts/cert-*.sh` | cert-deliver.sh、cert-monitor.sh、cert-notify.sh(已实施 2026-10-06) |
 | natcross 控制台 | 两个映射的 pem / key 上传框(人工维护) |
 | Mac `~/Downloads/lisom-cert-<date>/` | 交付副本(2026-10-06 首份位于 `lisom-cert-2026-10/`) |
 
@@ -128,7 +128,7 @@
 ## 7. 开放项
 
 - [ ] B1 可行性验证(抓一次上传 HAR)
-- [ ] 通知通道最终选型(默认企业微信群机器人)
+- [ ] 通知通道最终选型(用户选飞书,待提供 webhook URL)
 - [ ] cert-monitor.sh / cert-deliver.sh 实施
 
 ## 8. 安全约束(长期有效)
