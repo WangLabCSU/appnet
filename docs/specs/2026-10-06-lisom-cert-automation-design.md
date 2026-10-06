@@ -100,9 +100,9 @@
   (签名 = MD5(email + apiKey + rand + timestamp));但其服务端 DNS 验证不可靠,
   仅在 Let's Encrypt 被限流等场景作为备份签发通道。
 
-- **续期后取件(2026-10-06 增补)**:新证书自动落盘至 `~/manage/lisom-cert/{fullchain.pem,privkey.pem}`
+- **续期后取件(2026-10-06 增补)**:新证书自动落盘至 `~/manage/lisom-cert/{fullchain.pem,private.key}`
   (由 `acme.sh --install-cert` 维护,位于仓库外);Mac 上执行:
-  `scp lab-bio:~/manage/lisom-cert/fullchain.pem lab-bio:~/manage/lisom-cert/privkey.pem ~/Downloads/`
+  `scp lab-bio:~/manage/lisom-cert/fullchain.pem lab-bio:~/manage/lisom-cert/private.key ~/Downloads/`
   两个文件分别贴入 natcross 两个映射的 pem / key 框。
 
 ## 5. 验证记录
