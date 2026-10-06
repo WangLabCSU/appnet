@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # cert-notify — 证书自动化统一通知出口
 # 用法: cert-notify.sh "消息内容"
-# 行为: 始终追加 logs/cert.log;按优先级选择推送通道:
+# 行为: 始终追加 logs/cert.log(dry-run 会带 [DRY-RUN] 前缀);按优先级选择推送通道:
 #       ① FEISHU_WEBHOOK(飞书自定义机器人;若启用「签名校验」,另在 secrets 配 FEISHU_SECRET)
 #       ② WECOM_WEBHOOK(企业微信群机器人)
 #       都未配置 = 仅记日志(不报错)。
 # 判定: 用 jq 结构化解析响应(code/errcode == 0 才算成功),避免子串误判。
 # 安全: 本文件不得出现任何凭据;secret 经环境变量传入,不落 argv;消息不得含 token/webhook。
 set -u
+umask 027
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
@@ -22,7 +23,11 @@ fi
 
 ts="$(date '+%F %T')"
 mkdir -p "$(dirname "$LOG_FILE")"
-echo "[$ts] $msg" >> "$LOG_FILE"
+# 日志行清洗:去掉换行/回车,防多行消息伪造日志行
+safe="$(printf '%s' "$msg" | tr -d '\n\r')"
+prefix=""
+[ "${NOTIFY_DRY_RUN:-0}" = "1" ] && prefix="[DRY-RUN] "
+echo "[$ts] ${prefix}${safe}" >> "$LOG_FILE"
 
 FEISHU_WEBHOOK=""
 FEISHU_SECRET=""
