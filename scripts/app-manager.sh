@@ -1127,7 +1127,9 @@ update_single_app() {
                 ;;
         esac
         
-        if [ $diff -lt $interval_secs ]; then
+        # 容忍定时器整点触发与状态写入时刻的秒级抖动：严格比较时 hourly 应用
+        # 下次运行恰差 3599s 会被跳过，实际退化为每 2 小时才检查一次
+        if [ $((diff + 60)) -lt $interval_secs ]; then
             local remaining=$((interval_secs - diff))
             local remaining_mins=$((remaining / 60))
             echo -e "${YELLOW}  跳过 '$app_name' (${remaining_mins}分钟后更新)${NC}"
@@ -1161,14 +1163,19 @@ update_single_app() {
                 
                 if [ "$current_commit" != "$latest_commit" ]; then
                     echo "  → 拉取最新代码..."
-                    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
-                    needs_restart=true
+                    if git pull origin main 2>/dev/null || git pull origin master 2>/dev/null; then
+                        needs_restart=true
+                    else
+                        echo -e "${YELLOW}  ⚠️ git pull 失败（本地改动冲突或网络问题），跳过本次更新${NC}"
+                    fi
                 else
                     echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
                 fi
+            else
+                echo -e "${YELLOW}  ⚠️ 未找到 git 仓库: $git_path/.git（检查 auto_update.git_dir 配置，本次跳过）${NC}"
             fi
             ;;
-            
+
         git_pull_install)
             # git pull + pip install -e
             if [ -d "$git_path/.git" ]; then
@@ -1180,23 +1187,27 @@ update_single_app() {
                 
                 if [ "$current_commit" != "$latest_commit" ]; then
                     echo "  → 拉取最新代码..."
-                    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
-                    
-                    if [ "$reinstall_deps" = "true" ] && [ -d "$venv_path" ]; then
-                        echo "  → 重新安装依赖..."
-                        source "$venv_path/bin/activate"
-                        if [ -n "$pip_mirror" ]; then
-                            pip install -e ".[api]" -i "$pip_mirror" --quiet 2>/dev/null || \
-                            pip install -e . -i "$pip_mirror" --quiet 2>/dev/null || true
-                        else
-                            pip install -e ".[api]" --quiet 2>/dev/null || \
-                            pip install -e . --quiet 2>/dev/null || true
+                    if git pull origin main 2>/dev/null || git pull origin master 2>/dev/null; then
+                        if [ "$reinstall_deps" = "true" ] && [ -d "$venv_path" ]; then
+                            echo "  → 重新安装依赖..."
+                            source "$venv_path/bin/activate"
+                            if [ -n "$pip_mirror" ]; then
+                                pip install -e ".[api]" -i "$pip_mirror" --quiet 2>/dev/null || \
+                                pip install -e . -i "$pip_mirror" --quiet 2>/dev/null || true
+                            else
+                                pip install -e ".[api]" --quiet 2>/dev/null || \
+                                pip install -e . --quiet 2>/dev/null || true
+                            fi
                         fi
+                        needs_restart=true
+                    else
+                        echo -e "${YELLOW}  ⚠️ git pull 失败（本地改动冲突或网络问题），跳过本次更新${NC}"
                     fi
-                    needs_restart=true
                 else
                     echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
                 fi
+            else
+                echo -e "${YELLOW}  ⚠️ 未找到 git 仓库: $git_path/.git（检查 auto_update.git_dir 配置，本次跳过）${NC}"
             fi
             ;;
 
@@ -1220,29 +1231,33 @@ update_single_app() {
 
                 if [ "$current_commit" != "$latest_commit" ]; then
                     echo "  → 拉取最新代码..."
-                    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
-
-                    local npm_path="$git_path/$npm_dir"
-                    if [ -d "$npm_path" ]; then
-                        echo "  → npm ci + build ($npm_dir)..."
-                        # Node 应用多要求 Node>=20；系统版本不足时用户态补齐
-                        # shellcheck source=node-env.sh
-                        source "$SCRIPT_DIR/node-env.sh"
-                        if ! ensure_node20; then
-                            echo -e "${RED}  ✗ 无可用 Node>=$NODE20_MIN_MAJOR，跳过构建（服务将以上次构建运行）${NC}"
-                        else
-                            cd "$npm_path"
+                    if git pull origin main 2>/dev/null || git pull origin master 2>/dev/null; then
+                        local npm_path="$git_path/$npm_dir"
+                        if [ -d "$npm_path" ]; then
+                            echo "  → npm ci + build ($npm_dir)..."
+                            # Node 应用多要求 Node>=20；系统版本不足时用户态补齐
+                            # shellcheck source=node-env.sh
+                            source "$SCRIPT_DIR/node-env.sh"
                             local npm_args=(ci --no-audit --no-fund)
                             [ -n "$npm_registry" ] && npm_args+=(--registry "$npm_registry")
-                            npm "${npm_args[@]}"
-                            npm run build:bundle
-                            npm run build
+                            # 构建失败时保留旧构建继续服务、下个周期重试——不能让
+                            # 单个应用的失败在 set -e 下拖垮整个更新循环
+                            if ensure_node20 && (cd "$npm_path" && npm "${npm_args[@]}" && npm run build:bundle && npm run build); then
+                                needs_restart=true
+                            else
+                                echo -e "${RED}  ✗ 构建失败（Node 缺失或 npm 出错），保留旧构建继续运行${NC}"
+                            fi
+                        else
+                            echo -e "${YELLOW}  ⚠️ npm 目录不存在: $npm_path（检查 auto_update.npm_dir 配置），跳过构建${NC}"
                         fi
+                    else
+                        echo -e "${YELLOW}  ⚠️ git pull 失败（本地改动冲突或网络问题），跳过本次更新${NC}"
                     fi
-                    needs_restart=true
                 else
                     echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
                 fi
+            else
+                echo -e "${YELLOW}  ⚠️ 未找到 git 仓库: $git_path/.git（检查 auto_update.git_dir 配置，本次跳过）${NC}"
             fi
             ;;
 
