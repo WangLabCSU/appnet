@@ -149,6 +149,8 @@ apps:
       enabled: true
       interval: hourly  # hourly, daily, weekly
       method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade, git_pull_npm
+      git_dir: src      # 上游克隆在 src/（app 根目录无 .git；不配则更新静默空转）
+      venv_dir: venv    # venv 在 app 根目录（editable 安装指向 src/）
       # pip_git_url: "git+https://github.com/lishensuo/UCSCXenaToolsPy.git"
       reinstall_deps: true  # 是否重新安装依赖
     routes:
