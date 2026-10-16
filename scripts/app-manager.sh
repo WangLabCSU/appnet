@@ -1088,6 +1088,7 @@ update_single_app() {
     # 获取全局配置
     local github_proxy=$(grep "github_proxy:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
     local pip_mirror=$(grep "pip_mirror:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
+    local npm_registry=$(grep "npm_registry:" "$CONFIG_FILE" | awk '{print $2}' | tr -d '"')
     
     # 获取更新配置
     local method=$(echo "$app_config" | grep "method:" | awk '{print $2}' | tr -d '"' || echo "git_pull_install")
@@ -1096,6 +1097,8 @@ update_single_app() {
     local interval=$(echo "$app_config" | grep "interval:" | awk '{print $2}' || echo "hourly")
     local git_dir=$(echo "$app_config" | grep "git_dir:" | awk '{print $2}' | tr -d '"' || echo "src")
     local venv_dir=$(echo "$app_config" | grep "venv_dir:" | awk '{print $2}' | tr -d '"' || echo "venv")
+    local npm_dir=$(echo "$app_config" | grep "npm_dir:" | awk '{print $2}' | tr -d '"' || echo "mcp")
+    [ -n "$npm_dir" ] || npm_dir="mcp"
     
     # 解析目录路径
     # git_dir: "src" 或 "" (空表示 app 根目录)
@@ -1196,7 +1199,53 @@ update_single_app() {
                 fi
             fi
             ;;
-            
+
+        git_pull_npm)
+            # git pull + npm install + 构建（Node 应用，如 bizard-mcp）
+            if [ -d "$git_path/.git" ]; then
+                echo "  → 检查 Git 更新..."
+                cd "$git_path"
+                local current_commit=$(git rev-parse HEAD)
+
+                # 使用代理加速 fetch
+                if [ -n "$github_proxy" ]; then
+                    local original_url=$(git remote get-url origin)
+                    local proxy_url="${github_proxy}${original_url}"
+                    git fetch "$proxy_url" 2>/dev/null || git fetch origin 2>/dev/null
+                else
+                    git fetch origin 2>/dev/null
+                fi
+
+                local latest_commit=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
+
+                if [ "$current_commit" != "$latest_commit" ]; then
+                    echo "  → 拉取最新代码..."
+                    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null
+
+                    local npm_path="$git_path/$npm_dir"
+                    if [ -d "$npm_path" ]; then
+                        echo "  → npm install + build ($npm_dir)..."
+                        # Node 应用多要求 Node>=20；系统版本不足时用户态补齐
+                        # shellcheck source=node-env.sh
+                        source "$SCRIPT_DIR/node-env.sh"
+                        if ! ensure_node20; then
+                            echo -e "${RED}  ✗ 无可用 Node>=$NODE20_MIN_MAJOR，跳过构建（服务将以上次构建运行）${NC}"
+                        else
+                            cd "$npm_path"
+                            local npm_args=(install --no-audit --no-fund)
+                            [ -n "$npm_registry" ] && npm_args+=(--registry "$npm_registry")
+                            npm "${npm_args[@]}"
+                            npm run build:bundle
+                            npm run build
+                        fi
+                    fi
+                    needs_restart=true
+                else
+                    echo -e "  ${GREEN}✓ 无需更新，已是最新版本${NC}"
+                fi
+            fi
+            ;;
+
         pip_git)
             # pip install git+xxx
             if [ -n "$pip_git_url" ] && [ -d "$venv_path" ]; then

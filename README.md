@@ -10,7 +10,7 @@
 - **前后端分离支持** - 内置跨域解决方案
 - **动态配置生成** - 自动根据配置生成Caddyfile
 - **统一的命令行工具** - 所有运维操作通过 `appnet` 命令完成
-- **自动更新支持** - 支持应用代码自动更新（git pull + pip install）
+- **自动更新支持** - 支持应用代码自动更新（git pull + pip install / npm 构建）
 - **Docker容器检测** - 支持检测 Docker 容器运行状态
 - **Git版本控制** - 配置变更可追溯
 - **GitHub代理支持** - 内置国内镜像代理加速 git 操作
@@ -311,6 +311,7 @@ apps:
 | Demo1 | http://server:8880/demo1/ | 前后端分离应用 |
 | Demo2 | http://server:8880/demo2/ | 单体应用 |
 | Shiny | http://server:8880/shiny | R Shiny应用(跳转) |
+| Bizard MCP | http://server:8880/bizard-mcp/mcp | 图表库 MCP（Streamable HTTP，免安装接入） |
 
 ## 🎨 Landing Page
 
@@ -349,6 +350,8 @@ Demo1展示了前后端分离的跨域解决方案：
 | Demo2 | 28882 | 完整应用 |
 | OTK API | 28884 | Python/FastAPI |
 | UCSCXena API | 28885 | Python/FastAPI |
+| WebSearch MCP | 28891 | Streamable HTTP（token 鉴权） |
+| Bizard MCP | 28892 | Streamable HTTP（Node，跟踪 Bizard main 自动更新） |
 
 ## 🛠️ 开发指南
 
@@ -388,9 +391,10 @@ Demo1展示了前后端分离的跨域解决方案：
 auto_update:
   enabled: true
   interval: daily        # hourly, daily, weekly, 或 30min
-  method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade
+  method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade, git_pull_npm
   git_dir: ""            # git 仓库路径（空 = app 根目录）
-  venv_dir: venv         # 虚拟环境路径
+  venv_dir: venv         # 虚拟环境路径（Python 方法用）
+  npm_dir: mcp           # npm 包目录（git_pull_npm 用，位于 git 仓库内）
 ```
 
 **更新方法说明**：
@@ -398,9 +402,13 @@ auto_update:
 | 方法 | 说明 |
 |-----|------|
 | `git_pull` | 仅 git pull，不安装依赖 |
-| `git_pull_install` | git pull + pip install -e（推荐） |
+| `git_pull_install` | git pull + pip install -e（推荐，Python） |
 | `pip_git` | pip install git+xxx |
 | `pip_upgrade` | pip install -U package_name |
+| `git_pull_npm` | git pull + npm install + build:bundle + build + 重启（Node，如 bizard-mcp） |
+
+Node 应用要求 Node ≥ 20 时，`git_pull_npm` 与对应启动脚本经 `scripts/node-env.sh`
+自动使用系统 Node 或用户态 `~/.local/node20`（免 sudo，可用 `NODE20_SKIP_BOOTSTRAP=1` 禁用）。
 
 **安装 systemd 定时器**：
 

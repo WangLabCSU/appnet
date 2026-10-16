@@ -9,6 +9,8 @@ global:
   github_proxy: "https://gh-proxy.org/"  # 可选: gh-proxy.org, gitclone.com, hub.fastgit.xyz
   # pip 国内镜像
   pip_mirror: "https://pypi.tuna.tsinghua.edu.cn/simple"
+  # npm 国内镜像（加速 npm install；留空则用 npm 默认源）
+  npm_registry: "https://registry.npmmirror.com"
 
 # ============================================
 # 配置参数说明
@@ -146,7 +148,7 @@ apps:
     auto_update:
       enabled: true
       interval: hourly  # hourly, daily, weekly
-      method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade
+      method: git_pull_install  # git_pull, git_pull_install, pip_git, pip_upgrade, git_pull_npm
       # pip_git_url: "git+https://github.com/lishensuo/UCSCXenaToolsPy.git"
       reinstall_deps: true  # 是否重新安装依赖
     routes:
@@ -164,6 +166,27 @@ apps:
     routes:
       - path: /websearch
         target: localhost:28891
+        type: full
+        strip_prefix: true
+
+  # Bizard MCP——生物医学可视化图表库检索/教程/引用服务（Streamable HTTP，匿名+内置限流）
+  # 用户接入：claude mcp add --transport http bizard http://biotree.top:38123/bizard-mcp/mcp
+  # 代码跟踪 openbiox/Bizard main 分支，每小时检查，有提交自动构建并重启（见 apps/bizard-mcp/README.md）
+  - name: bizard-mcp
+    type: custom
+    description: "Bizard chart atlas MCP server (Streamable HTTP, tracks Bizard main)"
+    start_script: start.sh
+    env:
+      BIZARD_HTTP_PORT: 28892
+    auto_update:
+      enabled: true
+      interval: hourly
+      method: git_pull_npm          # git pull + npm install + build:bundle + build + 重启
+      git_dir: repo                 # Bizard 浅克隆目录（start.sh 首次拉取，.gitignore 排除）
+      npm_dir: mcp                  # npm 包目录（在克隆仓库内）
+    routes:
+      - path: /bizard-mcp
+        target: localhost:28892
         type: full
         strip_prefix: true
 

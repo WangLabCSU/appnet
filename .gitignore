@@ -59,6 +59,9 @@ apps/*/.update_state  # Auto update state files
 apps/ucscxena/src/
 apps/ucscxena/venv/
 
+# bizard-mcp 运行时（Bizard 浅克隆及其 node_modules/dist/内容快照，首次启动自动生成）
+apps/bizard-mcp/repo/
+
 # Keep directory structure
 !logs/.gitkeep
 
