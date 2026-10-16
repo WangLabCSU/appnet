@@ -24,7 +24,21 @@ source "$BASE_DIR/scripts/node-env.sh"
 ensure_node20
 
 # 快路径：已在跑则跳过（断电恢复 / appnet start 全部应用时无需重复构建）
-if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+#
+# 必须校验 PID 身份，不能只看 kill -0：PID 会被无关进程复用，此时快路径会
+# 误判「已在运行」直接退出——服务实际是停的，却对外报告启动成功，且此后
+# 每次 start 都被这个陈旧 PID 挡住（2026-10-16 排查时发现的同类陷阱）。
+mcp_running() {
+    [ -f "$PID_FILE" ] || return 1
+    local pid
+    pid="$(cat "$PID_FILE" 2>/dev/null)"
+    [ -n "$pid" ] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    # 确认是自己那个 node 进程：/proc/<pid>/cmdline 应指向本应用的 dist/index.js
+    tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -qF "$MCP_DIR/dist/index.js"
+}
+
+if mcp_running; then
     echo "already running (pid $(cat "$PID_FILE"))"
     exit 0
 fi

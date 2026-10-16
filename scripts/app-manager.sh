@@ -629,17 +629,52 @@ for app in config.get('apps', []):
 # 重启单个应用
 restart_app() {
     local name=$1
-    
+
     if [ -z "$name" ]; then
         echo -e "${RED}Error: Missing app name${NC}"
         show_help
         exit 1
     fi
-    
+
     echo -e "${BLUE}Restarting app: $name${NC}"
     stop_app "$name"
     sleep 2
     start_app "$name"
+}
+
+# 校验应用端口是否就绪（最多等待 $2 秒，默认 30）。就绪返回 0。
+#
+# 更新流程重启后必须调用：start_app 对 custom 应用只保证「启动脚本被拉起」，
+# 脚本自身可能随后失败退出。旧版更新流程重启后无条件打印「更新完成」——
+# 2026-10-16 bizard-mcp 就是这样在 19:00 静默死掉的：更新日志报告成功，
+# 服务其实没有起来，此后每小时只报「无需更新」，无人察觉。
+verify_app_ports() {
+    local name=$1 grace=${2:-30}
+    local ports
+    ports=$(CONFIG_FILE="$CONFIG_FILE" APP_NAME="$name" python3 << 'PYTHON_SCRIPT'
+import os, yaml
+with open(os.environ['CONFIG_FILE']) as f:
+    config = yaml.safe_load(f)
+for app in config.get('apps', []):
+    if app.get('name') == os.environ['APP_NAME']:
+        for route in app.get('routes', []):
+            target = route.get('target', '')
+            if ':' in target and 'localhost' in target:
+                print(target.split(':')[-1])
+PYTHON_SCRIPT
+)
+    [ -n "$ports" ] || return 0   # proxy/redirect 等无本地端口，无需校验
+
+    local deadline=$((SECONDS + grace))
+    while :; do
+        local missing=""
+        for port in $ports; do
+            ss -ltnH "sport = :$port" 2>/dev/null | grep -q . || missing="$missing $port"
+        done
+        [ -z "$missing" ] && return 0
+        [ "$SECONDS" -ge "$deadline" ] && { echo -e "${RED}  ✗ 端口未就绪:$missing${NC}" >&2; return 1; }
+        sleep 2
+    done
 }
 
 # 启动所有应用和Caddy
@@ -1309,7 +1344,13 @@ update_single_app() {
     if [ "$needs_restart" = "true" ]; then
         echo "  → 重启应用..."
         restart_app "$app_name"
-        echo -e "${GREEN}✓ 应用 '$app_name' 更新完成${NC}"
+        # 重启不等于起来：必须回探端口，否则「更新完成」是假消息，
+        # 服务挂掉后每小时只会重复报告「无需更新」。失败不中断其他应用。
+        if verify_app_ports "$app_name" 30; then
+            echo -e "${GREEN}✓ 应用 '$app_name' 更新完成${NC}"
+        else
+            echo -e "${RED}✗ 应用 '$app_name' 已更新但重启后端口未就绪——服务未起来，请检查${NC}" >&2
+        fi
     fi
 }
 
