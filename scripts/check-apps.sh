@@ -2,7 +2,13 @@
 # AppNet 应用健康检查
 # 供 systemd appnet-apps.service 的 ExecStartPost 调用
 # 从 config/apps.yaml 读所有 enabled 且非 proxy/redirect/static 的应用端口，
-# 用 ss 验证端口监听。全 LISTEN 返回 0，任一未监听返回 1。
+# 用 ss 验证端口监听。全部 LISTEN 返回 0，超时仍有端口未监听返回 1。
+#
+# 冷启动宽限：应用启动后端口需要数秒到数十秒才就绪（uvicorn 加载模型、
+# npm 冷启动等）。ExecStartPost 一旦返回非 0，systemd 会杀掉整个 cgroup
+# 并按 Restart=on-failure 重试——无宽限的即时检查在断电重启后必然陷入
+# 无限重启循环（2026-10-15 断电后实测重启计数 7600+）。因此这里每 2 秒
+# 重扫一次端口，最长等待 90 秒（须在 unit 的 TimeoutStartSec=120s 之内）。
 
 set -u
 
@@ -15,12 +21,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-# 失败的端口列表
-failed=""
-
 CONFIG_FILE="$CONFIG_FILE" python3 << 'PYTHON_SCRIPT'
 import os
 import subprocess
+import time
 import yaml
 import sys
 
@@ -53,19 +57,33 @@ if not all_ports:
     print("check-apps: no app ports to check")
     sys.exit(0)
 
-not_listening = []
-for port in all_ports:
-    r = subprocess.run(['ss', '-ltnH', f'sport = :{port}'],
-                        capture_output=True, text=True)
-    if r.stdout.strip():
-        print(f"  ✅ {port_to_app[port]} :{port} listening")
-    else:
-        print(f"  ❌ {port_to_app[port]} :{port} NOT listening")
-        not_listening.append(port)
+DEADLINE_SECONDS = 90
+POLL_INTERVAL = 2
 
-if not_listening:
-    print(f"check-apps: FAILED — ports not listening: {', '.join(not_listening)}", file=sys.stderr)
-    sys.exit(1)
+deadline = time.time() + DEADLINE_SECONDS
+ready = set()
 
-print("check-apps: all apps listening ✓")
+while True:
+    not_listening = []
+    for port in all_ports:
+        r = subprocess.run(['ss', '-ltnH', f'sport = :{port}'],
+                           capture_output=True, text=True)
+        if r.stdout.strip():
+            if port not in ready:
+                print(f"  ✅ {port_to_app[port]} :{port} listening")
+                ready.add(port)
+        else:
+            not_listening.append(port)
+
+    if not not_listening:
+        print("check-apps: all apps listening ✓")
+        sys.exit(0)
+
+    if time.time() >= deadline:
+        for port in not_listening:
+            print(f"  ❌ {port_to_app[port]} :{port} NOT listening", file=sys.stderr)
+        print(f"check-apps: FAILED — ports not listening: {', '.join(not_listening)}", file=sys.stderr)
+        sys.exit(1)
+
+    time.sleep(POLL_INTERVAL)
 PYTHON_SCRIPT

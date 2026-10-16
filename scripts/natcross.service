@@ -1,0 +1,31 @@
+# NATCross 隧道客户端 systemd unit
+#
+# 背景：biotree.top 实验室机器（bio-desktop）无公网 IP，lisom.work 等域名
+# 经 NATCross 中继（auth.natcross.com）对外暴露；Caddy(8880) 与内网应用
+# 通过本隧道承接公网流量。该客户端此前用 `nohup sudo` 手动拉起，断电重启
+# 后不会自动恢复，导致 lisom.work 公网 404（2026-10-15 断电事故实测）。
+#
+# 部署（一次性，需要 root）：
+#   sudo cp scripts/natcross.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now natcross.service
+#
+# 客户端二进制与配置位于 /opt/natcross/（root 所有），按之前的运行方式
+# 直接以前台模式启动、从工作目录读取 config.toml；日志走 journald。
+#   状态查看：systemctl status natcross
+#   日志查看：journalctl -u natcross -f
+
+[Unit]
+Description=NATCross tunnel client (public relay for lisom.work)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/natcross
+ExecStart=/opt/natcross/natcross_client_linux_amd64
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
