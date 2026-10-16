@@ -42,11 +42,15 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
-# 端口扫描：打印 "port app" 行，只保留当前未监听的端口
-not_listening_ports() {
-    CONFIG_FILE="$CONFIG_FILE" python3 - << 'PYTHON_SCRIPT'
+# 扫描未监听端口，结果写入 SCAN_RESULT（每行 "port app"）。
+# ss 缺失或报错时返回非 0——宁可这一轮不动作，也不能凭不可信的数据去杀进程：
+# 看门狗一旦把「扫描失败」误当成「全部挂了」，就会每轮重启所有应用。
+SCAN_RESULT=""
+scan_ports() {
+    SCAN_RESULT="$(CONFIG_FILE="$CONFIG_FILE" python3 - << 'PYTHON_SCRIPT'
 import os
 import subprocess
+import sys
 import yaml
 
 with open(os.environ['CONFIG_FILE']) as f:
@@ -66,11 +70,21 @@ for app in config.get('apps', []):
             port = target.split(':')[-1]
             if port and port not in seen:
                 seen.add(port)
-                r = subprocess.run(['ss', '-ltnH', f'sport = :{port}'],
-                                   capture_output=True, text=True)
+                try:
+                    r = subprocess.run(['ss', '-ltnH', f'sport = :{port}'],
+                                       capture_output=True, text=True)
+                except FileNotFoundError:
+                    print("check-apps: 找不到 ss（iproute2），端口状态无法判断",
+                          file=sys.stderr)
+                    sys.exit(2)
+                if r.returncode != 0:
+                    print(f"check-apps: ss 退出码 {r.returncode}，端口状态不可信",
+                          file=sys.stderr)
+                    sys.exit(2)
                 if not r.stdout.strip():
                     print(f"{port} {name}")
 PYTHON_SCRIPT
+)"
 }
 
 # 冷却检查：期内返回 0（可重启），否则返回 1（跳过）
@@ -83,46 +97,57 @@ cooldown_elapsed() {
     [ $((now - last)) -ge "$WATCHDOG_COOLDOWN_SECONDS" ]
 }
 
-# 等待端口就绪；全部就绪返回 0
+# 等待端口就绪；全部就绪返回 0，超时返回 1，扫描失败返回 2
 wait_for_ports() {
     local deadline=$((SECONDS + GRACE_SECONDS))
     while :; do
-        [ -z "$(not_listening_ports)" ] && return 0
+        scan_ports || return 2
+        [ -z "$SCAN_RESULT" ] && return 0
         [ "$SECONDS" -ge "$deadline" ] && return 1
         sleep 2
     done
 }
 
-echo "check-apps: 检查应用端口（宽限 ${GRACE_SECONDS}s，模式 $([ "$WATCHDOG" = 1 ] && echo 看门狗 || echo 一次性)）..."
+MODE_DESC=$([ "$WATCHDOG" = 1 ] && echo 看门狗 || echo 一次性)
+echo "check-apps: 检查应用端口（宽限 ${GRACE_SECONDS}s，模式 ${MODE_DESC}）..."
 
-if wait_for_ports; then
+wait_for_ports
+WAIT_STATUS=$?
+
+if [ "$WAIT_STATUS" -eq 2 ]; then
+    echo "check-apps: 端口扫描失败，本轮不做任何判断/重启" >&2
+    exit 1
+fi
+
+if [ "$WAIT_STATUS" -eq 0 ]; then
     echo "check-apps: all apps listening ✓"
     exit 0
 fi
 
-PENDING=$(not_listening_ports)
+PENDING="$SCAN_RESULT"
 
 # --- 一次性模式：报错退出（systemd 依据退出码决定是否重启整个服务） ---
 if [ "$WATCHDOG" = "0" ]; then
     while read -r port name; do
-        [ -n "$port" ] && echo "  ❌ $name :$port NOT listening" >&2
+        [ -n "$port" ] && echo "  ❌ ${name} :${port} NOT listening" >&2
     done <<< "$PENDING"
     echo "check-apps: FAILED — ports not listening: $(echo "$PENDING" | awk '{print $1}' | tr '\n' ' ')" >&2
     exit 1
 fi
 
 # --- 看门狗模式：逐个自愈重启（带冷却），退出码恒为 0 以免 cron 报错噪音 ---
+#
+# 变量一律用 ${name} 界定：变量名后紧跟全角标点时，bash 会把多字节字符的
+# 首字节并进变量名，报 "name: unbound variable" 并因 set -u 直接中止。
 mkdir -p "$BASE_DIR/logs"
 while read -r port name; do
     [ -z "$port" ] && continue
     if ! cooldown_elapsed "$name"; then
-        echo "  ⏭️  $name :$port 未监听，但仍在冷却期内（${WATCHDOG_COOLDOWN_SECONDS}s），跳过"
+        echo "  ⏭️  ${name} :${port} 未监听，但仍在冷却期内（${WATCHDOG_COOLDOWN_SECONDS}s），跳过"
         continue
     fi
-    echo "  🔄 $name :$port 未监听 → 执行 appnet restart $name"
+    echo "  🔄 ${name} :${port} 未监听 → 执行 appnet restart ${name}"
     date +%s > "$BASE_DIR/logs/.watchdog-$name"
-    # 变量一律用 ${name} 界定：紧跟全角标点时 bash 会把多字节字符的首字节
-    # 并进变量名，报 "name: unbound variable" 并在 set -u 下直接中止。
     if "$BASE_DIR/scripts/app-manager.sh" restart "$name" >> "$BASE_DIR/logs/watchdog.log" 2>&1; then
         echo "     ✓ 已重启 ${name}（详见 logs/watchdog.log）"
     else
