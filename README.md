@@ -405,7 +405,7 @@ auto_update:
 | `git_pull_install` | git pull + pip install -e（推荐，Python） |
 | `pip_git` | pip install git+xxx |
 | `pip_upgrade` | pip install -U package_name |
-| `git_pull_npm` | git pull + npm install + build:bundle + build + 重启（Node，如 bizard-mcp） |
+| `git_pull_npm` | git pull + npm ci + build:bundle + build + 重启（Node，如 bizard-mcp；npm ci 不改写 lockfile，保证工作区干净） |
 
 Node 应用要求 Node ≥ 20 时，`git_pull_npm` 与对应启动脚本经 `scripts/node-env.sh`
 自动使用系统 Node 或用户态 `~/.local/node20`（免 sudo，可用 `NODE20_SKIP_BOOTSTRAP=1` 禁用）。

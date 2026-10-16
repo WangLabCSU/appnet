@@ -181,7 +181,7 @@ apps:
     auto_update:
       enabled: true
       interval: hourly
-      method: git_pull_npm          # git pull + npm install + build:bundle + build + 重启
+      method: git_pull_npm          # git pull + npm ci + build:bundle + build + 重启
       git_dir: repo                 # Bizard 浅克隆目录（start.sh 首次拉取，.gitignore 排除）
       npm_dir: mcp                  # npm 包目录（在克隆仓库内）
     routes:

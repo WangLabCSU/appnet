@@ -1224,7 +1224,7 @@ update_single_app() {
 
                     local npm_path="$git_path/$npm_dir"
                     if [ -d "$npm_path" ]; then
-                        echo "  → npm install + build ($npm_dir)..."
+                        echo "  → npm ci + build ($npm_dir)..."
                         # Node 应用多要求 Node>=20；系统版本不足时用户态补齐
                         # shellcheck source=node-env.sh
                         source "$SCRIPT_DIR/node-env.sh"
@@ -1232,7 +1232,7 @@ update_single_app() {
                             echo -e "${RED}  ✗ 无可用 Node>=$NODE20_MIN_MAJOR，跳过构建（服务将以上次构建运行）${NC}"
                         else
                             cd "$npm_path"
-                            local npm_args=(install --no-audit --no-fund)
+                            local npm_args=(ci --no-audit --no-fund)
                             [ -n "$npm_registry" ] && npm_args+=(--registry "$npm_registry")
                             npm "${npm_args[@]}"
                             npm run build:bundle

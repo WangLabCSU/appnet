@@ -4,7 +4,7 @@
 # 首次运行自动完成（此后增量、快速返回）：
 #   1. 保证 Node>=20（系统无则用户态引导 ~/.local/node20，免 sudo）
 #   2. 浅克隆 openbiox/Bizard 到 repo/（不入库，.gitignore 排除；优先走 apps.yaml 的 github_proxy）
-#   3. npm install + build:bundle（生成图表内容快照）+ build（tsc 编译 + 拷贝快照）
+#   3. npm ci（只读 lockfile）+ build:bundle（生成图表内容快照）+ build（tsc 编译 + 拷贝快照）
 #   4. 以 Streamable HTTP 模式拉起，监听 BIZARD_HTTP_PORT（默认 28892）
 #
 # 代码自动更新不在此脚本负责：appnet update-app（git_pull_npm）拉新代码后重建并重启。
@@ -38,8 +38,9 @@ if [ ! -d "$REPO_DIR/.git" ]; then
 fi
 
 # npm 国内镜像（可选；apps.yaml global.npm_registry，留空用 npm 默认源）
+# npm ci 只读 lockfile 安装（可复现、且不改动克隆工作区，保证后续 git pull 永远干净）
 npm_mirror="$(python3 -c "import yaml;print(yaml.safe_load(open('$BASE_DIR/config/apps.yaml')).get('global',{}).get('npm_registry','') or '')" 2>/dev/null || true)"
-npm_install=(npm install --no-audit --no-fund)
+npm_install=(npm ci --no-audit --no-fund)
 [ -n "$npm_mirror" ] && npm_install+=(--registry "$npm_mirror")
 
 cd "$MCP_DIR"

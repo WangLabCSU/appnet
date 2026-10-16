@@ -37,13 +37,13 @@ apps/bizard-mcp/
    `start.sh` 经 `scripts/node-env.sh` 用户态安装 Node 20 到 `~/.local/node20`（免 sudo，
    可用 `NODE20_VERSION` 换版本，`NODE20_SKIP_BOOTSTRAP=1` 禁用自动安装）。
 2. **首次构建**：`git clone --depth 20`（走 apps.yaml 的 `github_proxy`）→
-   `npm install`（走 apps.yaml 的 `npm_registry`，可留空）→
+   `npm ci`（走 apps.yaml 的 `npm_registry`，可留空；只读 lockfile 不污染工作区）→
    `npm run build:bundle`（从画廊 CSV/教程 QMD 生成内容快照）→ `npm run build`（tsc + 拷贝快照）。
 3. **服务进程**：`node repo/mcp/dist/index.js --http`，监听 `BIZARD_HTTP_PORT`（默认 28892），
    仅本机回环可达，由 Caddy `/bizard-mcp` 反代（strip_prefix）对外。
 4. **自动更新**：`config/apps.yaml` 中 `auto_update.method: git_pull_npm`，由 systemd
    `appnet-update.timer`（每小时）驱动 `appnet update-app bizard-mcp`：
-   `git pull` → `npm install` → `build:bundle` → `build` → 重启。
+   `git pull` → `npm ci` → `build:bundle` → `build` → 重启。
 
 ## 运维命令
 
