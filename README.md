@@ -31,7 +31,8 @@ appnet/
 ├── scripts/              # 管理脚本
 │   ├── app-manager.sh     # 统一管理工具
 │   ├── check-apps.sh      # 应用健康检查（供 systemd unit 用）
-│   └── appnet-apps.service # systemd unit 模板（开机自启）
+│   ├── appnet-apps.service # appnet 应用 systemd unit 模板（开机自启）
+│   └── natcross.service   # NATCross 隧道 systemd unit 模板（公网入口自启）
 ├── logs/                 # 日志目录
 ├── Caddyfile             # Caddy配置文件(自动生成)
 └── README.md             # 本文件
@@ -104,7 +105,7 @@ appnet stop otk
 
 ### 6. 开机自启与断电恢复（推荐）
 
-上面 `appnet start` 启动的应用在机器断电/重启后**不会自动恢复**。要实现开机后所有应用自动恢复，需部署两套 systemd 自启：caddy 由 `caddy.service` 管，appnet 应用由 `appnet-apps.service` 管。
+上面 `appnet start` 启动的应用在机器断电/重启后**不会自动恢复**。要实现开机后所有应用自动恢复，需部署三套 systemd 自启：caddy 由 `caddy.service` 管，appnet 应用由 `appnet-apps.service` 管，对外隧道由 `natcross.service` 管。
 
 **前置条件**：
 - 已安装 caddy 包（提供 `caddy.service`，开机自启）
@@ -140,10 +141,25 @@ sudo systemctl enable appnet-apps.service
 sudo systemctl start appnet-apps       # 首次启动
 ```
 
+**部署 natcross.service**（NATCross 隧道，lisom.work 等公网域名的入口）：
+
+没有公网 IP 的机器，公网流量经 NATCross 中继进来；隧道客户端若只靠 `nohup` 手动拉起，
+断电重启后公网入口即 404（即使 caddy 和全部应用都已恢复）。模板已在仓库中，直接部署：
+
+```bash
+sudo cp scripts/natcross.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now natcross.service
+```
+
+> 注意：`natcross.service` 假定客户端二进制与配置位于 `/opt/natcross/`（二进制 + config.toml，
+> 从工作目录读取配置），与 lab-bio 现网布局一致；换机器时请先参照现网方式放置客户端，
+> 或修改模板中的 `WorkingDirectory` / `ExecStart` 路径。
+
 **验证**：
 
 ```bash
-systemctl status appnet-apps caddy     # 两者都应 active
+systemctl status appnet-apps caddy natcross     # 三者都应 active
 appnet status                          # 所有应用 🟢
 ```
 
