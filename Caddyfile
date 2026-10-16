@@ -50,6 +50,11 @@
     }
     redir /websearch /websearch/ 308
 
+    handle_path /bizard-mcp/* {
+        reverse_proxy localhost:28892
+    }
+    redir /bizard-mcp /bizard-mcp/ 308
+
     handle_path /rstudio/* {
         reverse_proxy localhost:8787 {
             header_up X-RStudio-Root-Path /rstudio

@@ -53,7 +53,8 @@ apps/*/build/
 apps/*/.env
 apps/*/.venv/
 **/.venv/
-apps/*/.update_state  # Auto update state files
+# 自动更新状态文件（每 app 一个时间戳，运行时生成）
+apps/*/.update_state
 
 # UCSCXenaToolsPy
 apps/ucscxena/src/
