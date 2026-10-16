@@ -170,7 +170,28 @@ appnet status                          # 所有应用 🟢
 - `ExecStartPost=check-apps.sh` 健康检查，任一 app 未监听则返回非0
 - `Restart=on-failure`：健康检查失败 → unit 重启（先 stop 清理再 start），重试到全部就绪
 
-**范围说明**：本方案保证"开机/重启后恢复"。运行中单个应用崩溃 unit 感知不到（应用以 detached 子进程启动，脱离 cgroup）。如需运行时自愈，可加 cron 定时跑 `scripts/check-apps.sh`，失败则 `appnet start <name>`（可选，未默认开启）。
+**注意：应用进程并不脱离 cgroup。** `start_app` 用 `start_new_session=True` 只是新开会话，进程仍留在启动它的 systemd unit 的 cgroup 里。这一点很关键：
+
+- `appnet-apps.service` 设了 `RemainAfterExit=yes`，unit 保持 active，cgroup 不被回收，它拉起并常驻的应用一直安全；
+- 而 `appnet-update.service` 是普通 oneshot，退出即 inactive，systemd 按默认 `KillMode=control-group` 清理整个 cgroup——**自动更新重启出来的应用会被连坐杀掉**（2026-10-16 bizard-mcp 静默停摆的根因，直到人工发现）。因此该 unit 必须设 `KillMode=process`（模板已含）。
+
+**范围说明**：systemd 方案保证"开机/重启后恢复"。运行中单个应用崩溃，unit 感知不到，靠下面的 cron 看门狗兜底。
+
+### 运行时自愈（cron 看门狗）
+
+unit 只管开机恢复，运行中的崩溃需要周期性巡检。仓库提供两个看门狗，均已接入 lab-bio 的 crontab：
+
+```bash
+# AppNet 应用：端口未监听 → appnet restart（每 5 分钟）
+*/5  * * * * /home/bio/manage/appnet/scripts/check-apps.sh --restart >> /home/bio/manage/appnet/logs/watchdog-cron.log 2>&1
+
+# Shiny 应用：worker 日志新增错误 → 终止该应用的 R worker（每 10 分钟）
+*/10 * * * * /home/bio/manage/appnet/scripts/shiny-watchdog.sh --restart >> /home/bio/manage/appnet/logs/shiny-watchdog-cron.log 2>&1
+```
+
+两者都带**每应用冷却期**（默认分别是 900s / 1800s），避免应用启动慢时被反复杀掉——2026-10-15 断电事故的重启循环（实测 7600+ 次）就是无冷却的健康检查造成的。`check-apps.sh` 另有失效保护：`ss` 缺失或报错时中止本轮，绝不把"扫描不可信"当成"全部挂了"去重启所有应用。
+
+> Shiny 看门狗看的是**应用自己的 worker 日志**而不是 HTTP 状态码：Shiny Server 只要 R 进程还在就返回 200，应用可能每个会话都在报错。2026-10-16 IOBRportal 即如此——`extra-library` 的 readxl 被换掉后，长驻 worker 仍映射旧文件，读到就报 `lazy-load database ... is corrupt`，用户看到不断 "Attempting to reconnect"，而预热日志一路 8/8 OK。
 
 ## 📝 应用管理
 
@@ -417,6 +438,15 @@ sudo ./scripts/install-systemd-timer.sh
 ```
 
 定时器每小时运行 `appnet update-app`，每个应用根据配置的 `interval` 判断是否需要更新。
+
+> **升级提示**：该 unit 必须带 `KillMode=process`。若服务器上是旧版 unit（没有这行），更新触发的应用重启会被 systemd 连坐杀掉——服务停摆，日志却报「更新完成」。确认与修复：
+>
+> ```bash
+> systemctl show appnet-update.service -p KillMode     # 期望 process，control-group 即需重装
+> sudo ./scripts/install-systemd-timer.sh              # 用模板重写 unit（幂等）
+> ```
+
+更新流程重启应用后会**回探端口**，起不来会明确报错并继续处理下一个应用，不再无条件打印「更新完成」——这类假成功正是 2026-10-16 故障被瞒住数小时的原因。
 
 ### Docker 容器应用
 
